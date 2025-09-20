@@ -74,62 +74,77 @@ echo     }
 echo }
 ) > qml\Main.qml
 
-:: 创建其他必需的QML文件
-echo Creating HomePage.qml...
-(
-echo import QtQuick 2.15
-echo import QtQuick.Controls 2.15
-echo.
-echo Page {
-echo     title: qsTr("Home"^)
-echo     Label {
-echo         text: qsTr("Home Page"^)
-echo         anchors.centerIn: parent
-echo     }
-echo }
-) > qml\HomePage.qml
+:: 从GitHub下载正确的QML文件
+echo Downloading correct QML files from GitHub...
 
-echo Creating SettingsPage.qml...
-(
-echo import QtQuick 2.15
-echo import QtQuick.Controls 2.15
-echo.
-echo Page {
-echo     title: qsTr("Settings"^)
-echo     Label {
-echo         text: qsTr("Settings Page"^)
-echo         anchors.centerIn: parent
-echo     }
-echo }
-) > qml\SettingsPage.qml
+:: 使用PowerShell下载文件
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/jefflower/QtQmlDemo/main/qml/HomePage.qml' -OutFile 'qml\HomePage.qml'}" 2>nul
+if %errorlevel% neq 0 (
+    echo Failed to download HomePage.qml, creating simplified version...
+    (
+    echo import QtQuick 2.15
+    echo import QtQuick.Controls 2.15
+    echo import QtQuick.Layouts 1.15
+    echo.
+    echo Page {
+    echo     title: qsTr("Home"^)
+    echo     ColumnLayout {
+    echo         anchors.centerIn: parent
+    echo         spacing: 20
+    echo         Label {
+    echo             text: qsTr("Welcome to Qt QML Demo"^)
+    echo             font.pixelSize: 24
+    echo             font.bold: true
+    echo         }
+    echo         Label {
+    echo             text: qsTr("QML loaded successfully!"^)
+    echo             font.pixelSize: 16
+    echo         }
+    echo         Button {
+    echo             text: qsTr("Test Button"^)
+    echo             onClicked: console.log("Button clicked!"^)
+    echo         }
+    echo     }
+    echo }
+    ) > qml\HomePage.qml
+)
 
-echo Creating Card.qml...
-(
-echo import QtQuick 2.15
-echo import QtQuick.Controls 2.15
-echo.
-echo Rectangle {
-echo     property string title: ""
-echo     property string description: ""
-echo     width: 300
-echo     height: 100
-echo     color: "white"
-echo     radius: 8
-echo     border.color: "#e0e0e0"
-echo.
-echo     Column {
-echo         anchors.centerIn: parent
-echo         Text {
-echo             text: title
-echo             font.bold: true
-echo         }
-echo         Text {
-echo             text: description
-echo             color: "#666"
-echo         }
-echo     }
-echo }
-) > qml\Card.qml
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/jefflower/QtQmlDemo/main/qml/SettingsPage.qml' -OutFile 'qml\SettingsPage.qml'}" 2>nul
+if %errorlevel% neq 0 (
+    echo Creating SettingsPage.qml...
+    (
+    echo import QtQuick 2.15
+    echo import QtQuick.Controls 2.15
+    echo.
+    echo Page {
+    echo     title: qsTr("Settings"^)
+    echo     Label {
+    echo         text: qsTr("Settings Page"^)
+    echo         anchors.centerIn: parent
+    echo     }
+    echo }
+    ) > qml\SettingsPage.qml
+)
+
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/jefflower/QtQmlDemo/main/qml/Card.qml' -OutFile 'qml\Card.qml'}" 2>nul
+if %errorlevel% neq 0 (
+    echo Creating Card.qml...
+    (
+    echo import QtQuick 2.15
+    echo import QtQuick.Controls 2.15
+    echo import QtQuick.Controls.Material 2.15
+    echo.
+    echo Rectangle {
+    echo     id: card
+    echo     radius: 8
+    echo     color: Material.background
+    echo     border.color: Material.dividerColor
+    echo     border.width: 1
+    echo.
+    echo     layer.enabled: true
+    echo }
+    ) > qml\Card.qml
+)
 
 echo.
 echo QML files created successfully!
