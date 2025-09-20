@@ -11,20 +11,17 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2022  # Windows Server 2022 (still compatible with Win7)
+    runs-on: windows-2022
 
     strategy:
+      fail-fast: false  # Continue building other configurations even if one fails
       matrix:
         qt_version: [5.15.2]
-        compiler: [msvc2019_64, mingw81_64]
+        compiler: [msvc2019_64]  # Focus on MSVC for now, MinGW in separate workflow
         include:
           - compiler: msvc2019_64
             qt_arch: win64_msvc2019_64
-            cmake_generator: "Visual Studio 16 2019"
-            cmake_arch: x64
-          - compiler: mingw81_64
-            qt_arch: win64_mingw81
-            cmake_generator: "MinGW Makefiles"
+            cmake_generator: "Visual Studio 17 2022"  # VS2022 on windows-2022
             cmake_arch: x64
 
     steps:
@@ -43,7 +40,6 @@ jobs:
         cache-key-prefix: 'qt-cache-${{ matrix.qt_version }}-${{ matrix.compiler }}'
 
     - name: Setup MSVC
-      if: matrix.compiler == 'msvc2019_64'
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
@@ -51,17 +47,10 @@ jobs:
     - name: Create build directory
       run: mkdir build
 
-    - name: Configure CMake (MSVC)
-      if: matrix.compiler == 'msvc2019_64'
+    - name: Configure CMake
       run: |
         cd build
         cmake .. -G "${{ matrix.cmake_generator }}" -A ${{ matrix.cmake_arch }} -DCMAKE_BUILD_TYPE=Release
-
-    - name: Configure CMake (MinGW)
-      if: matrix.compiler == 'mingw81_64'
-      run: |
-        cd build
-        cmake .. -G "${{ matrix.cmake_generator }}" -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
       run: |
@@ -69,25 +58,99 @@ jobs:
         cmake --build . --config Release
 
     - name: Deploy Qt (Windows deployment)
+      shell: cmd
       run: |
         mkdir deploy
         copy build\Release\QtQmlDemo.exe deploy\ 2>nul || copy build\QtQmlDemo.exe deploy\
         cd deploy
         windeployqt --qmldir ..\qml --quick --no-translations --no-system-d3d-compiler --no-opengl-sw QtQmlDemo.exe
 
-    - name: Create portable package
+    - name: Create Win7 compatibility files
+      shell: powershell
       run: |
-        cd deploy
-        echo "Creating portable package..."
+        # Create launch script
+        @"
+        @echo off
+        echo Starting QtQmlDemo...
+        set QT_OPENGL=software
+        start QtQmlDemo.exe
+        "@ | Out-File -FilePath "deploy\Launch_QtQmlDemo.bat" -Encoding ASCII
+
+        # Create README
+        @"
+        QtQmlDemo for Windows
+        =====================
+
+        To run: Double-click QtQmlDemo.exe or Launch_QtQmlDemo.bat
+
+        Requirements:
+        - Windows 7 SP1 or later
+        - Visual C++ Redistributable 2015-2019
+        "@ | Out-File -FilePath "deploy\README.txt" -Encoding ASCII
+
+    - name: Create archive
+      shell: powershell
+      run: |
+        Compress-Archive -Path deploy\* -DestinationPath QtQmlDemo-Windows-MSVC.zip
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: QtQmlDemo-Windows-${{ matrix.compiler }}-${{ github.sha }}
-        path: deploy/
+        name: QtQmlDemo-Windows-MSVC-${{ github.sha }}
+        path: |
+          deploy/
+          QtQmlDemo-Windows-MSVC.zip
+
+  build-mingw:
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install Qt with MinGW
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '5.15.2'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_mingw81'
+        modules: 'qtquickcontrols2'
+        tools: 'tools_mingw,qt.tools.win64_mingw810'
+        cache: true
+
+    - name: Build with MinGW
+      shell: cmd
+      run: |
+        set PATH=%Qt5_DIR%\..\..\Tools\mingw810_64\bin;%PATH%
+        mkdir build
+        cd build
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+        mingw32-make -j2
+
+    - name: Deploy application
+      shell: cmd
+      run: |
+        mkdir deploy
+        copy build\QtQmlDemo.exe deploy\
+        cd deploy
+        %Qt5_DIR%\bin\windeployqt.exe --qmldir ..\qml --quick --no-translations --no-system-d3d-compiler --no-opengl-sw QtQmlDemo.exe
+
+    - name: Create archive
+      shell: powershell
+      run: |
+        Compress-Archive -Path deploy\* -DestinationPath QtQmlDemo-Windows-MinGW.zip
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: QtQmlDemo-Windows-MinGW-${{ github.sha }}
+        path: |
+          deploy/
+          QtQmlDemo-Windows-MinGW.zip
 
   create-release:
-    needs: build-windows
+    needs: [build-windows, build-mingw]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
 
@@ -95,26 +158,22 @@ jobs:
     - name: Download MSVC artifact
       uses: actions/download-artifact@v3
       with:
-        name: QtQmlDemo-Windows-msvc2019_64-${{ github.sha }}
+        name: QtQmlDemo-Windows-MSVC-${{ github.sha }}
         path: ./msvc
 
     - name: Download MinGW artifact
       uses: actions/download-artifact@v3
       with:
-        name: QtQmlDemo-Windows-mingw81_64-${{ github.sha }}
+        name: QtQmlDemo-Windows-MinGW-${{ github.sha }}
         path: ./mingw
-
-    - name: Create zip packages
-      run: |
-        cd msvc && zip -r ../QtQmlDemo-Windows-MSVC-${{ github.ref_name }}.zip . && cd ..
-        cd mingw && zip -r ../QtQmlDemo-Windows-MinGW-${{ github.ref_name }}.zip . && cd ..
+      continue-on-error: true  # Continue even if MinGW build failed
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          QtQmlDemo-Windows-MSVC-${{ github.ref_name }}.zip
-          QtQmlDemo-Windows-MinGW-${{ github.ref_name }}.zip
+          msvc/QtQmlDemo-Windows-MSVC.zip
+          mingw/QtQmlDemo-Windows-MinGW.zip
         generate_release_notes: true
         draft: false
         prerelease: false
