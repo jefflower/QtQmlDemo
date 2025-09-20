@@ -94,7 +94,7 @@ jobs:
         Compress-Archive -Path deploy\* -DestinationPath QtQmlDemo-Windows-MSVC.zip
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: QtQmlDemo-Windows-MSVC-${{ github.sha }}
         path: |
@@ -142,7 +142,7 @@ jobs:
         Compress-Archive -Path deploy\* -DestinationPath QtQmlDemo-Windows-MinGW.zip
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: QtQmlDemo-Windows-MinGW-${{ github.sha }}
         path: |
@@ -156,13 +156,13 @@ jobs:
 
     steps:
     - name: Download MSVC artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: QtQmlDemo-Windows-MSVC-${{ github.sha }}
         path: ./msvc
 
     - name: Download MinGW artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: QtQmlDemo-Windows-MinGW-${{ github.sha }}
         path: ./mingw

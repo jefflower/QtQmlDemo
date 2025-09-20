@@ -87,7 +87,7 @@ jobs:
         Compress-Archive -Path release\* -DestinationPath QtQmlDemo-Win7-Compatible.zip
 
     - name: Upload build artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: QtQmlDemo-Win7-Compatible
         path: |
@@ -95,7 +95,7 @@ jobs:
           release/
 
     - name: Upload executable only
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: QtQmlDemo-Executable
         path: release/QtQmlDemo.exe
