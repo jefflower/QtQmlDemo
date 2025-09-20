@@ -25,42 +25,83 @@ jobs:
       run: |
         pip install aqtinstall
 
-        echo Listing available Qt versions...
-        aqt list-qt windows desktop --arch 5.15
-
         echo Installing Qt 5.15.2...
-        aqt install-qt windows desktop 5.15.2 win64_mingw81 -m qtquickcontrols2 -O qt
+        aqt install-qt windows desktop 5.15.2 win64_mingw81 -m qtquickcontrols2 -O Qt
 
         echo Installing MinGW...
-        aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O qt
+        aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O Qt
 
         echo Qt installation completed
-        dir qt
+
+    - name: Check Qt Installation
+      shell: cmd
+      run: |
+        echo Checking Qt directory structure...
+        dir Qt
+        echo.
+
+        echo Checking Qt version directories...
+        dir Qt\5.15.2
+        echo.
+
+        echo Searching for Qt5Config.cmake...
+        dir /s /b Qt\*.cmake | findstr Qt5Config
+        echo.
+
+        echo Checking MinGW installation...
+        dir Qt\Tools
+        echo.
 
     - name: Build
       shell: cmd
       run: |
         echo Setting up environment...
-        set PATH=%CD%\qt\Tools\mingw810_64\bin;%PATH%
-        set Qt5_DIR=%CD%\qt\5.15.2\mingw81_64
-        set CMAKE_PREFIX_PATH=%CD%\qt\5.15.2\mingw81_64
+        set PATH=%CD%\Qt\Tools\mingw810_64\bin;%PATH%
+        set Qt5_DIR=%CD%\Qt\5.15.2\mingw81_64
+        set CMAKE_PREFIX_PATH=%CD%\Qt\5.15.2\mingw81_64
 
-        echo Checking Qt installation...
-        if exist %Qt5_DIR%\lib\cmake\Qt5\Qt5Config.cmake (
+        echo Environment variables:
+        echo PATH=%PATH%
+        echo Qt5_DIR=%Qt5_DIR%
+        echo CMAKE_PREFIX_PATH=%CMAKE_PREFIX_PATH%
+        echo.
+
+        echo Checking if Qt5 directory exists...
+        if exist "%Qt5_DIR%" (
+          echo Qt5 directory found at %Qt5_DIR%
+          dir "%Qt5_DIR%"
+        ) else (
+          echo ERROR: Qt5 directory not found at %Qt5_DIR%
+          echo Checking alternative paths...
+          dir Qt\5.15.2 /b
+          exit 1
+        )
+
+        echo Checking for Qt5Config.cmake...
+        if exist "%Qt5_DIR%\lib\cmake\Qt5\Qt5Config.cmake" (
           echo Qt5Config.cmake found
         ) else (
-          echo ERROR: Qt5Config.cmake not found
-          dir %Qt5_DIR%\lib\cmake
-          exit 1
+          echo Qt5Config.cmake not at expected location
+          echo Searching for it...
+          dir /s /b "%Qt5_DIR%\*.cmake" | findstr Qt5Config
         )
 
         echo Building project...
         mkdir build
         cd build
-        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-        mingw32-make -j2
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%CMAKE_PREFIX_PATH% -DQt5_DIR=%Qt5_DIR%\lib\cmake\Qt5
+        if %errorlevel% neq 0 (
+          echo CMake configuration failed
+          exit 1
+        )
 
-        echo Build completed
+        mingw32-make -j2
+        if %errorlevel% neq 0 (
+          echo Build failed
+          exit 1
+        )
+
+        echo Build completed successfully
         dir *.exe
 
     - name: Package
@@ -68,10 +109,17 @@ jobs:
       run: |
         echo Creating deployment package...
         mkdir deploy
-        copy build\QtQmlDemo.exe deploy\
+
+        if exist build\QtQmlDemo.exe (
+          copy build\QtQmlDemo.exe deploy\
+        ) else (
+          echo ERROR: QtQmlDemo.exe not found in build directory
+          dir build
+          exit 1
+        )
 
         echo Deploying Qt libraries...
-        qt\5.15.2\mingw81_64\bin\windeployqt.exe ^
+        Qt\5.15.2\mingw81_64\bin\windeployqt.exe ^
           --dir deploy ^
           --qmldir qml ^
           --quick ^
@@ -82,14 +130,26 @@ jobs:
           deploy\QtQmlDemo.exe
 
         echo Copying MinGW runtime...
-        copy qt\Tools\mingw810_64\bin\libgcc_s_seh-1.dll deploy\
-        copy qt\Tools\mingw810_64\bin\libstdc++-6.dll deploy\
-        copy qt\Tools\mingw810_64\bin\libwinpthread-1.dll deploy\
+        copy Qt\Tools\mingw810_64\bin\libgcc_s_seh-1.dll deploy\ 2>nul
+        copy Qt\Tools\mingw810_64\bin\libstdc++-6.dll deploy\ 2>nul
+        copy Qt\Tools\mingw810_64\bin\libwinpthread-1.dll deploy\ 2>nul
 
         echo Creating launcher...
         echo @echo off > deploy\QtQmlDemo.bat
         echo set QT_OPENGL=software >> deploy\QtQmlDemo.bat
         echo start QtQmlDemo.exe %%* >> deploy\QtQmlDemo.bat
+
+        echo Creating README...
+        (
+        echo QtQmlDemo for Windows 7
+        echo ========================
+        echo.
+        echo To run: Double-click QtQmlDemo.bat or QtQmlDemo.exe
+        echo.
+        echo If it doesn't start, install:
+        echo - Visual C++ Redistributable 2015-2019
+        echo - DirectX 9.0c or later
+        ) > deploy\README.txt
 
         echo Package created
         dir deploy
@@ -97,6 +157,6 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: QtQmlDemo-Win7
+        name: QtQmlDemo-Win7-${{ github.run_number }}
         path: deploy/
         retention-days: 7
