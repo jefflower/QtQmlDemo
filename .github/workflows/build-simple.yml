@@ -1,0 +1,101 @@
+name: Simple Build (Win7 Compatible)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-win7-compatible:
+    runs-on: windows-2019
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install Qt 5.15.2
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '5.15.2'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_mingw81'
+        modules: 'qtquickcontrols2'
+        tools: 'tools_mingw,qt.tools.win64_mingw810'
+        cache: true
+
+    - name: Setup build environment
+      shell: cmd
+      run: |
+        echo "Setting up MinGW environment..."
+        set PATH=%Qt5_DIR%\..\..\Tools\mingw810_64\bin;%PATH%
+
+    - name: Build with CMake
+      shell: cmd
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+        mingw32-make -j2
+
+    - name: Deploy application
+      shell: cmd
+      run: |
+        mkdir release
+        copy build\QtQmlDemo.exe release\
+        cd release
+        %Qt5_DIR%\bin\windeployqt.exe --qmldir ..\qml --quick --no-translations --no-system-d3d-compiler --no-opengl-sw --no-angle --no-webkit2 --no-virtualkeyboard --release QtQmlDemo.exe
+
+    - name: Add Win7 compatibility files
+      shell: powershell
+      run: |
+        # Download Visual C++ Redistributable for Win7 compatibility
+        Write-Host "Ensuring Windows 7 compatibility..."
+
+        # Create a batch file for easy launching
+        @"
+        @echo off
+        echo Starting QtQmlDemo...
+        set QT_OPENGL=software
+        set QT_ANGLE_PLATFORM=d3d9
+        start QtQmlDemo.exe
+        "@ | Out-File -FilePath "release\Launch_QtQmlDemo.bat" -Encoding ASCII
+
+        # Create README for Windows 7 users
+        @"
+        QtQmlDemo for Windows 7
+        ========================
+
+        Requirements:
+        - Windows 7 SP1 or later
+        - DirectX 9.0c or later
+
+        To run the application:
+        1. Double-click Launch_QtQmlDemo.bat
+
+        If the application doesn't start:
+        1. Install Visual C++ Redistributable 2015-2019
+        2. Update DirectX
+        3. Try running as administrator
+        "@ | Out-File -FilePath "release\README_WIN7.txt" -Encoding ASCII
+
+    - name: Create archive
+      shell: powershell
+      run: |
+        Compress-Archive -Path release\* -DestinationPath QtQmlDemo-Win7-Compatible.zip
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: QtQmlDemo-Win7-Compatible
+        path: |
+          QtQmlDemo-Win7-Compatible.zip
+          release/
+
+    - name: Upload executable only
+      uses: actions/upload-artifact@v3
+      with:
+        name: QtQmlDemo-Executable
+        path: release/QtQmlDemo.exe
