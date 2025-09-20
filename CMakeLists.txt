@@ -7,7 +7,13 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 # 查找Qt5
-find_package(Qt5 5.12 REQUIRED COMPONENTS Core Quick Qml QuickControls2)
+# 设置Qt5查找路径（如果需要）
+if(DEFINED ENV{Qt5_DIR})
+    set(Qt5_DIR $ENV{Qt5_DIR})
+endif()
+
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt5QuickControls2 REQUIRED)
 
 # 添加可执行文件
 add_executable(QtQmlDemo

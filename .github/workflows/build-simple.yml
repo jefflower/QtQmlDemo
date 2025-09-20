@@ -30,6 +30,20 @@ jobs:
         aqt install-qt windows desktop 5.15.2 win64_mingw81 -m qtquickcontrols2 --outputdir qt
         aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 --outputdir qt
 
+    - name: Verify Qt installation
+      shell: cmd
+      run: |
+        echo Checking Qt installation...
+        dir qt\5.15.2\mingw81_64
+        if exist qt\5.15.2\mingw81_64\lib\cmake\Qt5\Qt5Config.cmake (
+          echo Qt5Config.cmake found
+          type qt\5.15.2\mingw81_64\lib\cmake\Qt5\Qt5Config.cmake | find "Qt5_VERSION"
+        ) else (
+          echo ERROR: Qt5Config.cmake not found
+          dir qt\5.15.2\mingw81_64\lib\cmake
+          exit 1
+        )
+
     - name: Setup environment
       shell: powershell
       run: |
