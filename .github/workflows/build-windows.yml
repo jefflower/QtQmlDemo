@@ -11,7 +11,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2019  # Windows Server 2019 for better Win7 compatibility
+    runs-on: windows-2022  # Windows Server 2022 (still compatible with Win7)
 
     strategy:
       matrix:
