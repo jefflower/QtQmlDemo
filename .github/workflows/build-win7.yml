@@ -161,16 +161,50 @@ jobs:
           echo [OK] Qt5Core.dll found
         ) else (
           echo [ERROR] Qt5Core.dll missing!
-          echo Manually copying Qt5 core libraries...
-          copy "%QT_DIR%\bin\Qt5Core.dll" deploy\
-          copy "%QT_DIR%\bin\Qt5Gui.dll" deploy\
-          copy "%QT_DIR%\bin\Qt5Qml.dll" deploy\
-          copy "%QT_DIR%\bin\Qt5Quick.dll" deploy\
-          copy "%QT_DIR%\bin\Qt5Network.dll" deploy\
-          copy "%QT_DIR%\bin\Qt5Widgets.dll" deploy\
-          copy "%QT_DIR%\bin\Qt5QuickControls2.dll" deploy\
-          copy "%QT_DIR%\bin\Qt5QuickTemplates2.dll" deploy\
         )
+
+        echo.
+        echo Manually copying additional Qt libraries to ensure completeness...
+        copy "%QT_DIR%\bin\Qt5Core.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5Gui.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5Qml.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5QmlModels.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5QmlWorkerScript.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5Quick.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5QuickControls2.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5QuickTemplates2.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5QuickShapes.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5Network.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5Widgets.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5Svg.dll" deploy\ 2>nul
+
+        echo.
+        echo Copying Qt plugins...
+        if not exist deploy\platforms mkdir deploy\platforms
+        copy "%QT_DIR%\plugins\platforms\qwindows.dll" deploy\platforms\ 2>nul
+
+        if not exist deploy\imageformats mkdir deploy\imageformats
+        copy "%QT_DIR%\plugins\imageformats\*.dll" deploy\imageformats\ 2>nul
+
+        if not exist deploy\styles mkdir deploy\styles
+        copy "%QT_DIR%\plugins\styles\qwindowsvistastyle.dll" deploy\styles\ 2>nul
+
+        if not exist deploy\qmltooling mkdir deploy\qmltooling
+        xcopy /E /I /Y "%QT_DIR%\plugins\qmltooling" deploy\qmltooling 2>nul
+
+        echo.
+        echo Copying QML modules...
+        if not exist deploy\QtQuick.2 mkdir deploy\QtQuick.2
+        xcopy /E /I /Y "%QT_DIR%\qml\QtQuick.2" deploy\QtQuick.2 2>nul
+
+        if not exist deploy\QtQuick mkdir deploy\QtQuick
+        xcopy /E /I /Y "%QT_DIR%\qml\QtQuick" deploy\QtQuick 2>nul
+
+        if not exist deploy\QtQml mkdir deploy\QtQml
+        xcopy /E /I /Y "%QT_DIR%\qml\QtQml" deploy\QtQml 2>nul
+
+        if not exist deploy\Qt mkdir deploy\Qt
+        xcopy /E /I /Y "%QT_DIR%\qml\Qt" deploy\Qt 2>nul
 
         echo.
         echo Package contents:

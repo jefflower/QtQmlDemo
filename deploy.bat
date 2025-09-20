@@ -63,51 +63,65 @@ copy "%MINGW_DIR%\bin\libgcc_s_seh-1.dll" deploy\ >nul 2>&1
 copy "%MINGW_DIR%\bin\libstdc++-6.dll" deploy\ >nul 2>&1
 copy "%MINGW_DIR%\bin\libwinpthread-1.dll" deploy\ >nul 2>&1
 
+:: 手动复制所有必需的Qt库（确保完整性）
+echo.
+echo Copying essential Qt libraries...
+copy "%QT_DIR%\bin\Qt5Core.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5Gui.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5Qml.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5QmlModels.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5QmlWorkerScript.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5Quick.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5QuickControls2.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5QuickTemplates2.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5QuickShapes.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5Network.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5Widgets.dll" deploy\ >nul 2>&1
+copy "%QT_DIR%\bin\Qt5Svg.dll" deploy\ >nul 2>&1
+
+:: 复制Qt插件
+echo Copying Qt plugins...
+if not exist deploy\platforms mkdir deploy\platforms
+copy "%QT_DIR%\plugins\platforms\qwindows.dll" deploy\platforms\ >nul 2>&1
+
+if not exist deploy\imageformats mkdir deploy\imageformats
+copy "%QT_DIR%\plugins\imageformats\*.dll" deploy\imageformats\ >nul 2>&1
+
+if not exist deploy\styles mkdir deploy\styles
+copy "%QT_DIR%\plugins\styles\qwindowsvistastyle.dll" deploy\styles\ >nul 2>&1
+
+:: 复制QML模块
+echo Copying QML modules...
+if not exist deploy\QtQuick.2 mkdir deploy\QtQuick.2
+xcopy /E /I /Y "%QT_DIR%\qml\QtQuick.2" deploy\QtQuick.2 >nul 2>&1
+
+if not exist deploy\QtQuick mkdir deploy\QtQuick
+xcopy /E /I /Y "%QT_DIR%\qml\QtQuick" deploy\QtQuick >nul 2>&1
+
+if not exist deploy\QtQml mkdir deploy\QtQml
+xcopy /E /I /Y "%QT_DIR%\qml\QtQml" deploy\QtQml >nul 2>&1
+
+if not exist deploy\Qt mkdir deploy\Qt
+xcopy /E /I /Y "%QT_DIR%\qml\Qt" deploy\Qt >nul 2>&1
+
 :: 验证关键DLL
 echo.
 echo Verifying critical DLLs...
 set MISSING_DLL=0
 
-if not exist deploy\Qt5Core.dll (
-    echo [MISSING] Qt5Core.dll
-    set MISSING_DLL=1
-) else (
-    echo [OK] Qt5Core.dll
+for %%f in (Qt5Core.dll Qt5Gui.dll Qt5Qml.dll Qt5QmlModels.dll Qt5Quick.dll Qt5QuickControls2.dll) do (
+    if exist deploy\%%f (
+        echo [OK] %%f
+    ) else (
+        echo [MISSING] %%f
+        set MISSING_DLL=1
+    )
 )
 
-if not exist deploy\Qt5Gui.dll (
-    echo [MISSING] Qt5Gui.dll
-    set MISSING_DLL=1
-) else (
-    echo [OK] Qt5Gui.dll
-)
-
-if not exist deploy\Qt5Qml.dll (
-    echo [MISSING] Qt5Qml.dll
-    set MISSING_DLL=1
-) else (
-    echo [OK] Qt5Qml.dll
-)
-
-if not exist deploy\Qt5Quick.dll (
-    echo [MISSING] Qt5Quick.dll
-    set MISSING_DLL=1
-) else (
-    echo [OK] Qt5Quick.dll
-)
-
-:: 如果缺少DLL，手动复制
 if %MISSING_DLL% equ 1 (
     echo.
-    echo Manually copying missing Qt libraries...
-    copy "%QT_DIR%\bin\Qt5Core.dll" deploy\ >nul 2>&1
-    copy "%QT_DIR%\bin\Qt5Gui.dll" deploy\ >nul 2>&1
-    copy "%QT_DIR%\bin\Qt5Qml.dll" deploy\ >nul 2>&1
-    copy "%QT_DIR%\bin\Qt5Quick.dll" deploy\ >nul 2>&1
-    copy "%QT_DIR%\bin\Qt5Network.dll" deploy\ >nul 2>&1
-    copy "%QT_DIR%\bin\Qt5Widgets.dll" deploy\ >nul 2>&1
-    copy "%QT_DIR%\bin\Qt5QuickControls2.dll" deploy\ >nul 2>&1
-    copy "%QT_DIR%\bin\Qt5QuickTemplates2.dll" deploy\ >nul 2>&1
+    echo WARNING: Some DLL files are missing!
+    echo Please check your Qt installation path.
 )
 
 :: 创建Windows 7兼容性启动脚本
