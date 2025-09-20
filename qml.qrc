@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/Main.qml</file>
+        <file>qml/HomePage.qml</file>
+        <file>qml/SettingsPage.qml</file>
+        <file>qml/Card.qml</file>
+        <file>resources/logo.png</file>
+    </qresource>
+</RCC>
