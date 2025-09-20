@@ -40,10 +40,13 @@ jobs:
       shell: cmd
       run: |
         set PATH=${{ github.workspace }}\qt\Tools\mingw810_64\bin;%PATH%
-        set Qt5_DIR=${{ github.workspace }}\qt\5.15.2\mingw81_64
+        set Qt5_DIR=${{ github.workspace }}\qt\5.15.2\mingw81_64\lib\cmake\Qt5
+        set CMAKE_PREFIX_PATH=${{ github.workspace }}\qt\5.15.2\mingw81_64
+        echo Qt5_DIR=%Qt5_DIR%
+        echo CMAKE_PREFIX_PATH=%CMAKE_PREFIX_PATH%
         mkdir build
         cd build
-        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%Qt5_DIR%
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DQt5_DIR=%Qt5_DIR% -DCMAKE_PREFIX_PATH=%CMAKE_PREFIX_PATH%
         mingw32-make -j2
 
     - name: Check build output
