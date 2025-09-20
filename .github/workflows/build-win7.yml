@@ -1,0 +1,116 @@
+name: Build Win7 Compatible App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    env:
+      QT_VERSION: 5.15.17
+      QT_ARCH: win64_mingw81
+      MINGW_VERSION: 8.1.0
+      CMAKE_VERSION: 3.27.7
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache Qt
+      id: cache-qt
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/Qt
+        key: qt-${{ env.QT_VERSION }}-mingw81-${{ runner.os }}
+
+    - name: Install Qt
+      if: steps.cache-qt.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        pip install aqtinstall
+        aqt install-qt windows desktop $QT_VERSION $QT_ARCH -m qtquickcontrols2 -O Qt
+        aqt install-tool windows desktop tools_mingw90 -O Qt
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: ${{ env.CMAKE_VERSION }}
+
+    - name: Configure
+      shell: bash
+      run: |
+        export PATH="$PWD/Qt/Tools/mingw810_64/bin:$PATH"
+        export Qt5_DIR="$PWD/Qt/$QT_VERSION/mingw81_64/lib/cmake/Qt5"
+
+        mkdir build && cd build
+        cmake .. \
+          -G "MinGW Makefiles" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_PREFIX_PATH="$PWD/../Qt/$QT_VERSION/mingw81_64"
+
+    - name: Build
+      shell: bash
+      run: |
+        export PATH="$PWD/Qt/Tools/mingw810_64/bin:$PATH"
+        cd build
+        mingw32-make -j$(nproc)
+
+    - name: Deploy
+      shell: bash
+      run: |
+        mkdir -p deploy
+        cp build/QtQmlDemo.exe deploy/
+
+        # Deploy Qt dependencies
+        Qt/$QT_VERSION/mingw81_64/bin/windeployqt.exe \
+          --dir deploy \
+          --qmldir qml \
+          --quick \
+          --no-translations \
+          --no-system-d3d-compiler \
+          --no-opengl-sw \
+          deploy/QtQmlDemo.exe
+
+        # Copy MinGW runtime
+        cp Qt/Tools/mingw810_64/bin/{libgcc_s_seh-1.dll,libstdc++-6.dll,libwinpthread-1.dll} deploy/ || true
+
+    - name: Create Package
+      shell: powershell
+      run: |
+        # Add launcher script
+        @"
+        @echo off
+        set QT_OPENGL=software
+        start QtQmlDemo.exe %*
+        "@ | Out-File -FilePath "deploy\QtQmlDemo.bat" -Encoding ASCII
+
+        # Create archive
+        Compress-Archive -Path deploy\* -DestinationPath QtQmlDemo-Win7.zip
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: QtQmlDemo-Win7-${{ github.run_number }}
+        path: |
+          QtQmlDemo-Win7.zip
+          deploy/
+        retention-days: 7
+
+    - name: Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: QtQmlDemo-Win7.zip
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
