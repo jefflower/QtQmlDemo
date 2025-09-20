@@ -16,110 +16,144 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install Qt
-      shell: cmd
+      shell: powershell
       run: |
+        # Install aqtinstall
         pip install aqtinstall
 
-        echo Installing Qt 5.15.2 and MinGW...
-        aqt install-qt windows desktop 5.15.2 win64_mingw81 -m qtquickcontrols2 -O Qt
-        aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O Qt
+        # Create Qt directory
+        New-Item -ItemType Directory -Path "Qt" -Force
 
-        echo.
-        echo Checking installation:
-        dir Qt /s /b | findstr /i "bin cmake"
+        # Install Qt to Qt directory
+        Write-Host "Installing Qt 5.15.2..."
+        python -m aqt install-qt `
+          --outputdir Qt `
+          windows desktop 5.15.2 win64_mingw81
 
-        echo.
-        echo Qt root contents:
-        dir Qt
+        # Install additional modules
+        python -m aqt install-qt `
+          --outputdir Qt `
+          windows desktop 5.15.2 win64_mingw81 `
+          -m qtquickcontrols2
 
-    - name: Find Qt Path
+        # Install MinGW
+        Write-Host "Installing MinGW..."
+        python -m aqt install-tool `
+          --outputdir Qt `
+          windows desktop tools_mingw qt.tools.win64_mingw810
+
+        # Show what was installed
+        Write-Host "Installation complete. Directory contents:"
+        Get-ChildItem -Path . -Name
+        Write-Host "Qt directory contents:"
+        Get-ChildItem -Path Qt -Name
+
+    - name: Verify Installation
       shell: cmd
       run: |
-        echo Searching for Qt installation...
+        echo Current directory contents:
+        dir
 
-        for /d %%i in (Qt\*) do (
-          if exist "%%i\mingw81_64" (
-            echo Found Qt at: %%i\mingw81_64
-            set QT_VERSION_DIR=%%i
+        echo.
+        echo Qt directory contents:
+        dir Qt
+
+        echo.
+        echo Qt subdirectories:
+        dir Qt /ad /b
+
+        echo.
+        echo Checking for Qt installation:
+        if exist "Qt\5.15.2\mingw81_64" (
+          echo Found Qt at: Qt\5.15.2\mingw81_64
+          dir Qt\5.15.2\mingw81_64
+        ) else (
+          echo Qt not found at expected location Qt\5.15.2\mingw81_64
+          echo.
+          echo Searching for Qt5Config.cmake:
+          for /f "delims=" %%i in ('dir Qt /s /b ^| findstr /i "Qt5Config.cmake"') do (
+            echo Found Qt5Config.cmake at: %%i
+            for %%j in ("%%i\..\..\..") do set QT_PATH=%%~fj
+          )
+          if defined QT_PATH (
+            echo Qt root path detected: %QT_PATH%
           )
         )
 
         echo.
-        echo Full directory structure:
-        dir Qt /s /b | findstr /v "\.dll" | findstr /v "\.a" | findstr /v "\.exe" | findstr /v "\.h" | findstr /v "\.cpp" | findstr /v "\.prl"
+        echo Checking for MinGW:
+        if exist "Qt\Tools\mingw810_64" (
+          echo Found MinGW at: Qt\Tools\mingw810_64
+        ) else (
+          echo MinGW not found at expected location Qt\Tools\mingw810_64
+          echo.
+          echo Contents of Qt\Tools:
+          dir Qt\Tools /ad /b 2>nul
+        )
 
     - name: Build
       shell: cmd
       run: |
-        rem Find Qt dynamically
-        set QT_ROOT=%CD%\Qt
-
-        rem Search for Qt installation
-        for /d %%i in (%QT_ROOT%\*) do (
-          if exist "%%i\mingw81_64\lib\cmake\Qt5\Qt5Config.cmake" (
-            set QT_DIR=%%i\mingw81_64
-            echo Found Qt at: %%i\mingw81_64
-            goto :found
-          )
-        )
-
-        echo ERROR: Could not find Qt installation
-        exit 1
-
-        :found
-        set MINGW_DIR=%QT_ROOT%\Tools\mingw810_64
+        set QT_DIR=%CD%\Qt\5.15.2\mingw81_64
+        set MINGW_DIR=%CD%\Qt\Tools\mingw810_64
         set PATH=%MINGW_DIR%\bin;%QT_DIR%\bin;%PATH%
 
-        echo Building with:
+        echo Build environment:
         echo QT_DIR=%QT_DIR%
         echo MINGW_DIR=%MINGW_DIR%
+
+        if not exist "%QT_DIR%\lib\cmake\Qt5\Qt5Config.cmake" (
+          echo ERROR: Qt5Config.cmake not found
+          echo Checking Qt directory:
+          dir %QT_DIR%\lib\cmake
+          exit 1
+        )
 
         mkdir build
         cd build
 
-        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QT_DIR%
-        if %errorlevel% neq 0 exit /b %errorlevel%
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QT_DIR% -DQt5_DIR=%QT_DIR%\lib\cmake\Qt5
+        if %errorlevel% neq 0 exit /b 1
 
         mingw32-make -j2
-        if %errorlevel% neq 0 exit /b %errorlevel%
+        if %errorlevel% neq 0 exit /b 1
 
-        echo Build successful!
+        echo Build complete!
         dir *.exe
 
-    - name: Deploy
+    - name: Package
       shell: cmd
       run: |
         mkdir deploy
         copy build\QtQmlDemo.exe deploy\
 
-        rem Find Qt dynamically for deployment
-        set QT_ROOT=%CD%\Qt
-        for /d %%i in (%QT_ROOT%\*) do (
-          if exist "%%i\mingw81_64\bin\windeployqt.exe" (
-            set QT_DIR=%%i\mingw81_64
-            goto :deploy
-          )
-        )
+        set QT_DIR=%CD%\Qt\5.15.2\mingw81_64
+        set MINGW_DIR=%CD%\Qt\Tools\mingw810_64
 
-        :deploy
-        %QT_DIR%\bin\windeployqt.exe --dir deploy --qmldir qml --quick --no-translations --no-system-d3d-compiler --no-opengl-sw --release deploy\QtQmlDemo.exe
+        %QT_DIR%\bin\windeployqt.exe ^
+          --dir deploy ^
+          --qmldir qml ^
+          --quick ^
+          --no-translations ^
+          --no-system-d3d-compiler ^
+          --no-opengl-sw ^
+          --release ^
+          deploy\QtQmlDemo.exe
 
-        rem Copy MinGW runtime
-        copy %QT_ROOT%\Tools\mingw810_64\bin\libgcc_s_seh-1.dll deploy\ 2>nul
-        copy %QT_ROOT%\Tools\mingw810_64\bin\libstdc++-6.dll deploy\ 2>nul
-        copy %QT_ROOT%\Tools\mingw810_64\bin\libwinpthread-1.dll deploy\ 2>nul
+        copy %MINGW_DIR%\bin\libgcc_s_seh-1.dll deploy\ 2>nul
+        copy %MINGW_DIR%\bin\libstdc++-6.dll deploy\ 2>nul
+        copy %MINGW_DIR%\bin\libwinpthread-1.dll deploy\ 2>nul
 
-        rem Create launcher
-        echo @echo off > deploy\Launch.bat
-        echo set QT_OPENGL=software >> deploy\Launch.bat
-        echo start QtQmlDemo.exe %%* >> deploy\Launch.bat
+        echo @echo off > deploy\QtQmlDemo_Win7.bat
+        echo set QT_OPENGL=software >> deploy\QtQmlDemo_Win7.bat
+        echo start QtQmlDemo.exe %%* >> deploy\QtQmlDemo_Win7.bat
 
-        echo Deploy complete. Contents:
+        echo Package contents:
         dir deploy
 
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: QtQmlDemo-Win7-${{ github.run_number }}
+        name: QtQmlDemo-Win7-Build-${{ github.run_number }}
         path: deploy/
         retention-days: 30
