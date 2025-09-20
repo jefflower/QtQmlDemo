@@ -37,21 +37,43 @@ int main(int argc, char *argv[])
     Backend backend;
     engine.rootContext()->setContextProperty("backend", &backend);
 
-    const QUrl url(QStringLiteral("qrc:/qml/Main.qml"));
+    // 首先尝试从资源文件加载
+    QUrl url(QStringLiteral("qrc:/qml/Main.qml"));
+    bool useFileSystem = false;
 
     // 检查QML资源是否存在
     if (!QFile::exists(":/qml/Main.qml")) {
-        qCritical() << "ERROR: Main.qml not found in resources!";
-        qDebug() << "Available resources:";
-        QDirIterator it(":", QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            qDebug() << it.next();
+        qWarning() << "Main.qml not found in resources, trying file system...";
+
+        // 尝试从文件系统加载
+        QString qmlPath = QCoreApplication::applicationDirPath() + "/qml/Main.qml";
+        if (QFile::exists(qmlPath)) {
+            url = QUrl::fromLocalFile(qmlPath);
+            useFileSystem = true;
+            qDebug() << "Loading QML from file system:" << qmlPath;
+        } else {
+            // 也尝试上级目录（开发环境）
+            qmlPath = QCoreApplication::applicationDirPath() + "/../qml/Main.qml";
+            if (QFile::exists(qmlPath)) {
+                url = QUrl::fromLocalFile(qmlPath);
+                useFileSystem = true;
+                qDebug() << "Loading QML from development path:" << qmlPath;
+            } else {
+                qCritical() << "ERROR: Main.qml not found anywhere!";
+                qDebug() << "Searched in:";
+                qDebug() << "  - Resources (qrc:/qml/Main.qml)";
+                qDebug() << "  - " << QCoreApplication::applicationDirPath() + "/qml/Main.qml";
+                qDebug() << "  - " << QCoreApplication::applicationDirPath() + "/../qml/Main.qml";
+
+                QMessageBox::critical(nullptr, "Error",
+                    "Failed to load QML file.\n"
+                    "Main.qml not found in resources or file system.\n\n"
+                    "Please ensure either:\n"
+                    "1. The qml.qrc file is properly compiled into the executable, or\n"
+                    "2. The 'qml' folder exists next to the executable.");
+                return -1;
+            }
         }
-        QMessageBox::critical(nullptr, "Error",
-            "Failed to load QML resources.\n"
-            "Main.qml not found in embedded resources.\n\n"
-            "This usually means the resource file (qml.qrc) was not properly compiled.");
-        return -1;
     }
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

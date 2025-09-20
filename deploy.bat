@@ -132,7 +132,12 @@ echo :: Windows 7 compatibility launcher >> deploy\QtQmlDemo_Win7.bat
 echo set QT_OPENGL=software >> deploy\QtQmlDemo_Win7.bat
 echo start QtQmlDemo.exe %%* >> deploy\QtQmlDemo_Win7.bat
 
-:: 复制资源文件（如果需要）
+:: 复制QML文件（作为备用方案）
+echo Copying QML files as backup...
+if not exist deploy\qml mkdir deploy\qml
+copy qml\*.qml deploy\qml\ >nul 2>&1
+
+:: 复制资源文件
 if exist resources\logo.png (
     if not exist deploy\resources mkdir deploy\resources
     copy resources\logo.png deploy\resources\ >nul 2>&1
