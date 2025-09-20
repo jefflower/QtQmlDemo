@@ -129,27 +129,52 @@ jobs:
 
         set QT_DIR=%CD%\Qt\5.15.2\mingw81_64
         set MINGW_DIR=%CD%\Qt\Tools\mingw810_64
+        set PATH=%QT_DIR%\bin;%MINGW_DIR%\bin;%PATH%
 
+        echo Deploying Qt dependencies...
         %QT_DIR%\bin\windeployqt.exe ^
-          --dir deploy ^
           --qmldir qml ^
           --quick ^
           --no-translations ^
           --no-system-d3d-compiler ^
           --no-opengl-sw ^
+          --no-virtualkeyboard ^
+          --no-angle ^
           --release ^
           deploy\QtQmlDemo.exe
 
-        copy %MINGW_DIR%\bin\libgcc_s_seh-1.dll deploy\ 2>nul
-        copy %MINGW_DIR%\bin\libstdc++-6.dll deploy\ 2>nul
-        copy %MINGW_DIR%\bin\libwinpthread-1.dll deploy\ 2>nul
+        echo.
+        echo Copying MinGW runtime libraries...
+        copy "%MINGW_DIR%\bin\libgcc_s_seh-1.dll" deploy\
+        copy "%MINGW_DIR%\bin\libstdc++-6.dll" deploy\
+        copy "%MINGW_DIR%\bin\libwinpthread-1.dll" deploy\
 
+        echo.
+        echo Creating Win7 compatibility launcher...
         echo @echo off > deploy\QtQmlDemo_Win7.bat
         echo set QT_OPENGL=software >> deploy\QtQmlDemo_Win7.bat
         echo start QtQmlDemo.exe %%* >> deploy\QtQmlDemo_Win7.bat
 
+        echo.
+        echo Verifying critical DLLs:
+        if exist deploy\Qt5Core.dll (
+          echo [OK] Qt5Core.dll found
+        ) else (
+          echo [ERROR] Qt5Core.dll missing!
+          echo Manually copying Qt5 core libraries...
+          copy "%QT_DIR%\bin\Qt5Core.dll" deploy\
+          copy "%QT_DIR%\bin\Qt5Gui.dll" deploy\
+          copy "%QT_DIR%\bin\Qt5Qml.dll" deploy\
+          copy "%QT_DIR%\bin\Qt5Quick.dll" deploy\
+          copy "%QT_DIR%\bin\Qt5Network.dll" deploy\
+          copy "%QT_DIR%\bin\Qt5Widgets.dll" deploy\
+          copy "%QT_DIR%\bin\Qt5QuickControls2.dll" deploy\
+          copy "%QT_DIR%\bin\Qt5QuickTemplates2.dll" deploy\
+        )
+
+        echo.
         echo Package contents:
-        dir deploy
+        dir deploy\*.dll deploy\*.exe
 
     - name: Upload
       uses: actions/upload-artifact@v4
