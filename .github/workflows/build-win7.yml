@@ -15,148 +15,151 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install Qt
-      shell: cmd
+    - name: Install Qt with aqtinstall
+      shell: powershell
       run: |
+        # Install aqtinstall
         pip install aqtinstall
 
-        echo Installing Qt 5.15.2...
-        aqt install-qt windows desktop 5.15.2 win64_mingw81 -m qtquickcontrols2 -O Qt
+        # Create Qt directory
+        New-Item -ItemType Directory -Force -Path "${{ github.workspace }}/Qt"
 
-        echo Installing MinGW...
-        aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O Qt
+        # Install Qt
+        Write-Host "Installing Qt 5.15.2..."
+        python -m aqt install-qt `
+          --outputdir "${{ github.workspace }}/Qt" `
+          windows desktop 5.15.2 win64_mingw81 `
+          -m qtquickcontrols2
 
-        echo Qt installation completed
+        # Install MinGW
+        Write-Host "Installing MinGW tools..."
+        python -m aqt install-tool `
+          --outputdir "${{ github.workspace }}/Qt" `
+          windows desktop tools_mingw qt.tools.win64_mingw810
 
-    - name: Check Qt Installation
-      shell: cmd
+        # List installed directories
+        Write-Host "Qt installation structure:"
+        Get-ChildItem -Path "${{ github.workspace }}/Qt" -Recurse -Directory | Select-Object -First 20
+
+    - name: Verify Installation
+      shell: powershell
       run: |
-        echo Checking Qt directory structure...
-        dir Qt
-        echo.
+        $qtRoot = "${{ github.workspace }}/Qt"
 
-        echo Checking Qt version directories...
-        dir Qt\5.15.2
-        echo.
+        Write-Host "Checking Qt installation..."
+        if (Test-Path "$qtRoot/5.15.2/mingw81_64") {
+          Write-Host "✓ Qt found at: $qtRoot/5.15.2/mingw81_64"
+          Get-ChildItem "$qtRoot/5.15.2/mingw81_64" -Directory
+        } else {
+          Write-Host "Qt not at expected location, searching..."
+          Get-ChildItem $qtRoot -Recurse -Filter "Qt5Config.cmake" | Select-Object -First 1
+        }
 
-        echo Searching for Qt5Config.cmake...
-        dir /s /b Qt\*.cmake | findstr Qt5Config
-        echo.
-
-        echo Checking MinGW installation...
-        dir Qt\Tools
-        echo.
+        Write-Host "`nChecking MinGW..."
+        if (Test-Path "$qtRoot/Tools/mingw810_64") {
+          Write-Host "✓ MinGW found at: $qtRoot/Tools/mingw810_64"
+        } else {
+          Write-Host "MinGW not found, searching..."
+          Get-ChildItem $qtRoot -Directory -Recurse | Where-Object {$_.Name -like "mingw*"}
+        }
 
     - name: Build
       shell: cmd
       run: |
-        echo Setting up environment...
-        set PATH=%CD%\Qt\Tools\mingw810_64\bin;%PATH%
-        set Qt5_DIR=%CD%\Qt\5.15.2\mingw81_64
-        set CMAKE_PREFIX_PATH=%CD%\Qt\5.15.2\mingw81_64
+        set QT_ROOT=%CD%\Qt
+        set QT_DIR=%QT_ROOT%\5.15.2\mingw81_64
+        set MINGW_DIR=%QT_ROOT%\Tools\mingw810_64
+        set PATH=%MINGW_DIR%\bin;%QT_DIR%\bin;%PATH%
 
-        echo Environment variables:
-        echo PATH=%PATH%
-        echo Qt5_DIR=%Qt5_DIR%
-        echo CMAKE_PREFIX_PATH=%CMAKE_PREFIX_PATH%
-        echo.
+        echo Building with:
+        echo QT_DIR=%QT_DIR%
+        echo MINGW_DIR=%MINGW_DIR%
 
-        echo Checking if Qt5 directory exists...
-        if exist "%Qt5_DIR%" (
-          echo Qt5 directory found at %Qt5_DIR%
-          dir "%Qt5_DIR%"
-        ) else (
-          echo ERROR: Qt5 directory not found at %Qt5_DIR%
-          echo Checking alternative paths...
-          dir Qt\5.15.2 /b
+        if not exist "%QT_DIR%" (
+          echo ERROR: Qt not found at %QT_DIR%
+          echo Listing Qt directory:
+          dir %QT_ROOT%
           exit 1
         )
 
-        echo Checking for Qt5Config.cmake...
-        if exist "%Qt5_DIR%\lib\cmake\Qt5\Qt5Config.cmake" (
-          echo Qt5Config.cmake found
-        ) else (
-          echo Qt5Config.cmake not at expected location
-          echo Searching for it...
-          dir /s /b "%Qt5_DIR%\*.cmake" | findstr Qt5Config
-        )
-
-        echo Building project...
         mkdir build
         cd build
-        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%CMAKE_PREFIX_PATH% -DQt5_DIR=%Qt5_DIR%\lib\cmake\Qt5
-        if %errorlevel% neq 0 (
-          echo CMake configuration failed
-          exit 1
-        )
+
+        cmake .. ^
+          -G "MinGW Makefiles" ^
+          -DCMAKE_BUILD_TYPE=Release ^
+          -DCMAKE_PREFIX_PATH=%QT_DIR% ^
+          -DQt5_DIR=%QT_DIR%\lib\cmake\Qt5
+
+        if %errorlevel% neq 0 exit /b %errorlevel%
 
         mingw32-make -j2
-        if %errorlevel% neq 0 (
-          echo Build failed
-          exit 1
-        )
+        if %errorlevel% neq 0 exit /b %errorlevel%
 
-        echo Build completed successfully
+        echo Build successful!
         dir *.exe
 
     - name: Package
-      shell: cmd
+      shell: powershell
       run: |
-        echo Creating deployment package...
-        mkdir deploy
+        $qtDir = "${{ github.workspace }}/Qt/5.15.2/mingw81_64"
+        $mingwDir = "${{ github.workspace }}/Qt/Tools/mingw810_64"
 
-        if exist build\QtQmlDemo.exe (
-          copy build\QtQmlDemo.exe deploy\
-        ) else (
-          echo ERROR: QtQmlDemo.exe not found in build directory
-          dir build
-          exit 1
-        )
+        # Create deploy directory
+        New-Item -ItemType Directory -Force -Path "deploy"
 
-        echo Deploying Qt libraries...
-        Qt\5.15.2\mingw81_64\bin\windeployqt.exe ^
-          --dir deploy ^
-          --qmldir qml ^
-          --quick ^
-          --no-translations ^
-          --no-system-d3d-compiler ^
-          --no-opengl-sw ^
-          --release ^
-          deploy\QtQmlDemo.exe
+        # Copy executable
+        Copy-Item "build/QtQmlDemo.exe" -Destination "deploy/" -ErrorAction Stop
 
-        echo Copying MinGW runtime...
-        copy Qt\Tools\mingw810_64\bin\libgcc_s_seh-1.dll deploy\ 2>nul
-        copy Qt\Tools\mingw810_64\bin\libstdc++-6.dll deploy\ 2>nul
-        copy Qt\Tools\mingw810_64\bin\libwinpthread-1.dll deploy\ 2>nul
+        # Deploy Qt dependencies
+        & "$qtDir/bin/windeployqt.exe" `
+          --dir deploy `
+          --qmldir qml `
+          --quick `
+          --no-translations `
+          --no-system-d3d-compiler `
+          --no-opengl-sw `
+          --release `
+          deploy/QtQmlDemo.exe
 
-        echo Creating launcher...
-        echo @echo off > deploy\QtQmlDemo.bat
-        echo set QT_OPENGL=software >> deploy\QtQmlDemo.bat
-        echo start QtQmlDemo.exe %%* >> deploy\QtQmlDemo.bat
+        # Copy MinGW runtime
+        Copy-Item "$mingwDir/bin/libgcc_s_seh-1.dll" -Destination "deploy/" -ErrorAction SilentlyContinue
+        Copy-Item "$mingwDir/bin/libstdc++-6.dll" -Destination "deploy/" -ErrorAction SilentlyContinue
+        Copy-Item "$mingwDir/bin/libwinpthread-1.dll" -Destination "deploy/" -ErrorAction SilentlyContinue
 
-        echo Creating README...
-        (
-        echo QtQmlDemo for Windows 7
-        echo ========================
-        echo.
-        echo To run: Double-click QtQmlDemo.bat or QtQmlDemo.exe
-        echo.
-        echo If it doesn't start, install:
-        echo - Visual C++ Redistributable 2015-2019
-        echo - DirectX 9.0c or later
-        ) > deploy\README.txt
+        # Create launcher
+        @"
+        @echo off
+        set QT_OPENGL=software
+        set QT_ANGLE_PLATFORM=d3d9
+        start QtQmlDemo.exe %*
+        "@ | Out-File -FilePath "deploy/QtQmlDemo.bat" -Encoding ASCII
 
-        echo Package created
-        dir deploy
+        # Create README
+        @"
+        QtQmlDemo for Windows 7
+        ========================
 
-    - name: Upload
+        Requirements:
+        - Windows 7 SP1 or later
+        - Visual C++ Redistributable 2015-2019
+
+        To run:
+        1. Double-click QtQmlDemo.bat (recommended)
+        2. Or double-click QtQmlDemo.exe
+
+        Troubleshooting:
+        - Install VC++ Redistributable if missing
+        - Update DirectX if graphics issues occur
+        - Run as administrator if needed
+        "@ | Out-File -FilePath "deploy/README.txt" -Encoding UTF8
+
+        Write-Host "Package contents:"
+        Get-ChildItem deploy
+
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: QtQmlDemo-Win7-${{ github.run_number }}
+        name: QtQmlDemo-Win7-Build-${{ github.run_number }}
         path: deploy/
-        retention-days: 7
+        retention-days: 30
