@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Controls.Material 2.15
-import QtGraphicalEffects 1.15
 
 Rectangle {
     color: Material.backgroundColor
@@ -8,13 +7,12 @@ Rectangle {
     border.color: Material.dividerColor
     border.width: 1
 
-    layer.enabled: true
-    layer.effect: DropShadow {
-        transparentBorder: true
-        horizontalOffset: 0
-        verticalOffset: 2
-        radius: 8
-        samples: 17
-        color: "#20000000"
+    // 简单的阴影效果，不依赖QtGraphicalEffects
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: -2
+        radius: parent.radius + 2
+        color: "#10000000"
+        z: -1
     }
 }

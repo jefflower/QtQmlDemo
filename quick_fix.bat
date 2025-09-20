@@ -131,17 +131,13 @@ if %errorlevel% neq 0 (
     echo Creating Card.qml...
     (
     echo import QtQuick 2.15
-    echo import QtQuick.Controls 2.15
     echo import QtQuick.Controls.Material 2.15
     echo.
     echo Rectangle {
-    echo     id: card
+    echo     color: Material.backgroundColor
     echo     radius: 8
-    echo     color: Material.background
     echo     border.color: Material.dividerColor
     echo     border.width: 1
-    echo.
-    echo     layer.enabled: true
     echo }
     ) > qml\Card.qml
 )
