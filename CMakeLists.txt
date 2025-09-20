@@ -12,7 +12,7 @@ if(DEFINED ENV{Qt5_DIR})
     set(Qt5_DIR $ENV{Qt5_DIR})
 endif()
 
-find_package(Qt5 5.12 REQUIRED COMPONENTS Core Quick Qml)
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Quick Qml Widgets)
 find_package(Qt5QuickControls2 REQUIRED)
 
 # 添加可执行文件
@@ -29,6 +29,7 @@ target_link_libraries(QtQmlDemo
     Qt5::Quick
     Qt5::Qml
     Qt5::QuickControls2
+    Qt5::Widgets
 )
 
 # 设置安装规则
