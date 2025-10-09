@@ -42,6 +42,17 @@ jobs:
           --outputdir Qt `
           windows desktop tools_mingw qt.tools.win64_mingw810
 
+        Write-Host "Checking for Qt MySQL plugin..."
+        $pluginPath = "Qt\5.15.2\mingw81_64\plugins\sqldrivers\qsqlmysql.dll"
+        if (Test-Path $pluginPath) {
+          Write-Host "[OK] Qt MySQL plugin found in installation"
+          Get-Item $pluginPath | Format-List
+        } else {
+          Write-Host "[WARNING] Qt MySQL plugin NOT found in installation"
+          Write-Host "Listing sqldrivers contents:"
+          Get-ChildItem "Qt\5.15.2\mingw81_64\plugins\sqldrivers" -ErrorAction SilentlyContinue
+        }
+
         # Show what was installed
         Write-Host "Installation complete. Directory contents:"
         Get-ChildItem -Path . -Name
@@ -121,123 +132,6 @@ jobs:
         echo Build complete!
         dir *.exe
 
-    - name: Download MySQL Connector/C
-      shell: powershell
-      run: |
-        Write-Host "Downloading MySQL Connector/C 6.1.11..."
-
-        # 使用GitHub镜像加速下载
-        $url = "https://downloads.mysql.com/archives/get/p/19/file/mysql-connector-c-6.1.11-winx64.zip"
-        $output = "mysql-connector.zip"
-
-        # 尝试下载
-        try {
-          Invoke-WebRequest -Uri $url -OutFile $output -TimeoutSec 300
-          Write-Host "Download successful"
-        } catch {
-          Write-Host "Download from MySQL failed, trying alternative method..."
-          # 如果失败，使用仓库中的libmysql.dll作为运行时库
-          # 但编译会跳过
-          exit 0
-        }
-
-        # 解压
-        if (Test-Path $output) {
-          Write-Host "Extracting MySQL Connector..."
-          Expand-Archive -Path $output -DestinationPath "mysql-connector-full" -Force
-
-          # 显示目录结构
-          Get-ChildItem -Path "mysql-connector-full" -Recurse -Directory | Select-Object FullName
-
-          Write-Host "MySQL Connector extracted successfully"
-        }
-
-    - name: Install Qt Source
-      shell: powershell
-      run: |
-        Write-Host "Installing Qt 5.15.2 source code..."
-        python -m aqt install-src --outputdir Qt windows desktop 5.15.2
-
-    - name: Build Qt MySQL Plugin
-      shell: cmd
-      run: |
-        echo Building Qt MySQL plugin from source...
-
-        set QT_DIR=%CD%\Qt\5.15.2\mingw81_64
-        set MINGW_DIR=%CD%\Qt\Tools\mingw810_64
-        set PATH=%MINGW_DIR%\bin;%QT_DIR%\bin;%PATH%
-
-        REM 查找MySQL Connector目录
-        for /d %%i in (mysql-connector-full\mysql-connector-c-*) do set MYSQL_ROOT=%%i
-        if not defined MYSQL_ROOT (
-          echo [WARNING] MySQL Connector not found, skipping plugin compilation
-          goto skip_plugin_build
-        )
-
-        echo MySQL Connector found at: %MYSQL_ROOT%
-        set MYSQL_INCDIR=%CD%\%MYSQL_ROOT%\include
-        set MYSQL_LIBDIR=%CD%\%MYSQL_ROOT%\lib
-
-        echo MYSQL_INCDIR=%MYSQL_INCDIR%
-        echo MYSQL_LIBDIR=%MYSQL_LIBDIR%
-
-        REM 检查目录是否存在
-        if not exist "%MYSQL_INCDIR%\mysql.h" (
-          echo [WARNING] mysql.h not found, skipping plugin compilation
-          goto skip_plugin_build
-        )
-
-        cd Qt\5.15.2\Src\qtbase\src\plugins\sqldrivers
-
-        echo Configuring MySQL plugin...
-        qmake -- MYSQL_INCDIR="%MYSQL_INCDIR%" MYSQL_LIBDIR="%MYSQL_LIBDIR%"
-        if errorlevel 1 (
-          echo [WARNING] qmake configuration failed, skipping plugin compilation
-          cd %CD%\..\..\..\..
-          goto skip_plugin_build
-        )
-
-        cd mysql
-        qmake
-        if errorlevel 1 (
-          echo [WARNING] qmake for mysql plugin failed, skipping plugin compilation
-          cd %CD%\..\..\..\..\..
-          goto skip_plugin_build
-        )
-
-        mingw32-make
-        if errorlevel 1 (
-          echo [WARNING] Build failed, skipping plugin compilation
-          cd %CD%\..\..\..\..\..
-          goto skip_plugin_build
-        )
-
-        echo [OK] Qt MySQL plugin built successfully
-        echo Listing built DLL files:
-        dir /b *.dll
-
-        REM 复制到临时位置供后续使用
-        echo Creating mysql_plugin_compiled directory...
-        cd %CD%\..\..\..\..\..\..
-        mkdir mysql_plugin_compiled
-
-        echo Copying qsqlmysql.dll...
-        copy Qt\5.15.2\Src\qtbase\src\plugins\sqldrivers\mysql\qsqlmysql.dll mysql_plugin_compiled\
-
-        if exist mysql_plugin_compiled\qsqlmysql.dll (
-          echo [SUCCESS] qsqlmysql.dll copied successfully
-          dir mysql_plugin_compiled\qsqlmysql.dll
-        ) else (
-          echo [ERROR] Failed to copy qsqlmysql.dll
-        )
-
-        goto end_plugin_build
-
-        :skip_plugin_build
-        echo Plugin compilation skipped, will use repository DLL if available
-
-        :end_plugin_build
-        echo Continuing with package...
 
     - name: Package
       shell: cmd
@@ -269,67 +163,48 @@ jobs:
 
         echo.
         echo Copying MySQL client library...
-
-        REM 优先从MySQL Connector完整包复制
-        for /d %%i in (mysql-connector-full\mysql-connector-c-*) do (
-          if exist "%%i\lib\libmysql.dll" (
-            copy "%%i\lib\libmysql.dll" deploy\
-            echo [OK] libmysql.dll copied from MySQL Connector package
-            goto mysql_dll_done
-          )
-        )
-
-        REM 如果没有，使用仓库中的
         if exist "dependencies\mysql\libmysql.dll" (
           copy dependencies\mysql\libmysql.dll deploy\
           echo [OK] libmysql.dll copied from repository
-          goto mysql_dll_done
+        ) else (
+          echo [ERROR] libmysql.dll not found in dependencies\mysql\
+          exit /b 1
         )
-
-        echo [ERROR] libmysql.dll not found!
-        exit /b 1
-
-        :mysql_dll_done
 
         echo.
         echo ==========================================
         echo Copying Qt MySQL plugin...
         echo ==========================================
 
-        echo Checking for compiled plugin...
-        if exist "mysql_plugin_compiled" (
-          echo mysql_plugin_compiled directory exists
-          dir mysql_plugin_compiled
-        ) else (
-          echo mysql_plugin_compiled directory NOT found
-        )
+        if not exist deploy\sqldrivers mkdir deploy\sqldrivers
 
-        if not exist deploy\sqldrivers (
-          echo Creating deploy\sqldrivers directory...
-          mkdir deploy\sqldrivers
-        )
-
-        REM 优先使用刚编译的插件
-        if exist "mysql_plugin_compiled\qsqlmysql.dll" (
-          echo [INFO] Found compiled qsqlmysql.dll, copying...
-          copy /Y mysql_plugin_compiled\qsqlmysql.dll deploy\sqldrivers\
+        REM 方法1: 从Qt安装目录复制
+        if exist "%QT_DIR%\plugins\sqldrivers\qsqlmysql.dll" (
+          echo [INFO] Found qsqlmysql.dll in Qt installation
+          copy /Y "%QT_DIR%\plugins\sqldrivers\qsqlmysql.dll" deploy\sqldrivers\
           if exist deploy\sqldrivers\qsqlmysql.dll (
-            echo [SUCCESS] Qt MySQL plugin copied from compiled source (Qt 5.15.2 - version matched)
+            echo [SUCCESS] Qt MySQL plugin copied from Qt installation (Qt 5.15.2 matched)
             dir deploy\sqldrivers\qsqlmysql.dll
-          ) else (
-            echo [ERROR] Copy failed!
           )
-        ) else if exist "dependencies\qt-plugins\sqldrivers\qsqlmysql.dll" (
+          goto plugin_done
+        )
+
+        REM 方法2: 从仓库复制
+        if exist "dependencies\qt-plugins\sqldrivers\qsqlmysql.dll" (
           echo [INFO] Using pre-built plugin from repository...
           copy /Y dependencies\qt-plugins\sqldrivers\qsqlmysql.dll deploy\sqldrivers\
-          echo [WARNING] May have version mismatch!
-        ) else (
-          echo [ERROR] Qt MySQL plugin not found anywhere!
-          echo [ERROR] Application will not be able to connect to MySQL database
-          echo Searched locations:
-          echo   1. mysql_plugin_compiled\qsqlmysql.dll
-          echo   2. dependencies\qt-plugins\sqldrivers\qsqlmysql.dll
+          echo [WARNING] Using repository plugin - ensure it matches Qt 5.15.2!
+          goto plugin_done
         )
+
+        REM 如果都没有
+        echo [WARNING] Qt MySQL plugin not found!
+        echo [WARNING] Application will not be able to connect to MySQL
+        echo Searched locations:
+        echo   1. %QT_DIR%\plugins\sqldrivers\qsqlmysql.dll
+        echo   2. dependencies\qt-plugins\sqldrivers\qsqlmysql.dll
+
+        :plugin_done
 
         echo.
         echo Creating Win7 compatibility launcher...
