@@ -60,6 +60,7 @@ ApplicationWindow {
 
             model: ListModel {
                 ListElement { title: "Home"; icon: "home" }
+                ListElement { title: "医保数据处理"; icon: "process" }
                 ListElement { title: "Settings"; icon: "settings" }
             }
 
@@ -90,6 +91,10 @@ ApplicationWindow {
             id: homePage
         }
 
+        ProcessPage {
+            id: processPage
+        }
+
         SettingsPage {
             id: settingsPage
         }
@@ -105,8 +110,13 @@ ApplicationWindow {
         }
 
         TabButton {
-            text: qsTr("Settings")
+            text: qsTr("医保处理")
             onClicked: mainWindow.currentPageIndex = 1
+        }
+
+        TabButton {
+            text: qsTr("Settings")
+            onClicked: mainWindow.currentPageIndex = 2
         }
     }
 

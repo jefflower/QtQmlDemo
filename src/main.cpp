@@ -10,6 +10,7 @@
 #include <QMessageBox>
 #include <QApplication>
 #include "backend.h"
+#include "medicaldataprocessor.h"
 
 int main(int argc, char *argv[])
 {
@@ -31,11 +32,19 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Material");
 
     qmlRegisterType<Backend>("com.example.backend", 1, 0, "Backend");
+    qmlRegisterType<MedicalDataProcessor>("com.example.medical", 1, 0, "MedicalDataProcessor");
 
     QQmlApplicationEngine engine;
 
     Backend backend;
+    // 创建医疗数据处理器实例
+    MedicalDataProcessor processor;
+
+    // 在加载QML之前设置context properties
     engine.rootContext()->setContextProperty("backend", &backend);
+    engine.rootContext()->setContextProperty("medicalProcessor", &processor);
+
+    qDebug() << "Context properties set: backend and medicalProcessor";
 
     // 首先尝试从资源文件加载
     QUrl url(QStringLiteral("qrc:/qml/Main.qml"));

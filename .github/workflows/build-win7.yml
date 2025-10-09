@@ -121,6 +121,24 @@ jobs:
         echo Build complete!
         dir *.exe
 
+    - name: Download MySQL Client DLL
+      shell: powershell
+      run: |
+        # 下载MySQL Connector/C 6.1.11 (兼容Windows 7)
+        Write-Host "Downloading MySQL Connector/C..."
+        $url = "https://dev.mysql.com/get/Downloads/Connector-C/mysql-connector-c-6.1.11-winx64.zip"
+        $output = "mysql-connector.zip"
+
+        # 使用Invoke-WebRequest下载
+        Invoke-WebRequest -Uri $url -OutFile $output
+
+        # 解压
+        Write-Host "Extracting MySQL Connector..."
+        Expand-Archive -Path $output -DestinationPath "mysql-connector" -Force
+
+        Write-Host "MySQL Connector downloaded and extracted"
+        Get-ChildItem -Path "mysql-connector" -Recurse -Filter "libmysql.dll" | Select-Object FullName
+
     - name: Package
       shell: cmd
       run: |
@@ -150,6 +168,25 @@ jobs:
         copy "%MINGW_DIR%\bin\libwinpthread-1.dll" deploy\
 
         echo.
+        echo Copying MySQL client library...
+        for /r "%CD%\mysql-connector" %%f in (libmysql.dll) do (
+          if exist "%%f" (
+            copy "%%f" deploy\
+            echo Copied: %%f
+          )
+        )
+
+        echo.
+        echo Copying Qt MySQL plugin...
+        if not exist deploy\sqldrivers mkdir deploy\sqldrivers
+        copy "%QT_DIR%\plugins\sqldrivers\qsqlmysql.dll" deploy\sqldrivers\ 2>nul
+        if errorlevel 1 (
+          echo WARNING: Qt MySQL plugin not found in Qt installation
+        ) else (
+          echo Qt MySQL plugin copied successfully
+        )
+
+        echo.
         echo Creating Win7 compatibility launcher...
         echo @echo off > deploy\QtQmlDemo_Win7.bat
         echo set QT_OPENGL=software >> deploy\QtQmlDemo_Win7.bat
@@ -161,6 +198,24 @@ jobs:
           echo [OK] Qt5Core.dll found
         ) else (
           echo [ERROR] Qt5Core.dll missing!
+        )
+
+        if exist deploy\Qt5Sql.dll (
+          echo [OK] Qt5Sql.dll found
+        ) else (
+          echo [ERROR] Qt5Sql.dll missing!
+        )
+
+        if exist deploy\libmysql.dll (
+          echo [OK] libmysql.dll found
+        ) else (
+          echo [ERROR] libmysql.dll missing!
+        )
+
+        if exist deploy\sqldrivers\qsqlmysql.dll (
+          echo [OK] qsqlmysql.dll found
+        ) else (
+          echo [ERROR] qsqlmysql.dll missing!
         )
 
         echo.
@@ -175,6 +230,7 @@ jobs:
         copy "%QT_DIR%\bin\Qt5QuickTemplates2.dll" deploy\ 2>nul
         copy "%QT_DIR%\bin\Qt5QuickShapes.dll" deploy\ 2>nul
         copy "%QT_DIR%\bin\Qt5Network.dll" deploy\ 2>nul
+        copy "%QT_DIR%\bin\Qt5Sql.dll" deploy\ 2>nul
         copy "%QT_DIR%\bin\Qt5Widgets.dll" deploy\ 2>nul
         copy "%QT_DIR%\bin\Qt5Svg.dll" deploy\ 2>nul
 

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QDateTime>
+#include <QSettings>
 
 class Backend : public QObject
 {
@@ -31,6 +32,10 @@ public slots:
     QString processText(const QString &text);
     void logMessage(const QString &msg);
 
+    // 设置管理
+    Q_INVOKABLE QString getSetting(const QString &key, const QString &defaultValue = QString());
+    Q_INVOKABLE void setSetting(const QString &key, const QString &value);
+
 signals:
     void messageChanged();
     void counterChanged();
@@ -41,6 +46,7 @@ private:
     QString m_message;
     int m_counter;
     QString m_currentTime;
+    QSettings m_settings;
 };
 
 #endif // BACKEND_H

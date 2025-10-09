@@ -147,6 +147,79 @@ Page {
             }
 
             GroupBox {
+                title: qsTr("数据库代理服务")
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    width: parent.width
+                    spacing: 15
+
+                    Label {
+                        text: qsTr("配置数据库代理服务的端口和地址")
+                        font.pixelSize: 12
+                        color: Material.color(Material.Grey)
+                    }
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        rowSpacing: 10
+                        columnSpacing: 10
+
+                        Label {
+                            text: qsTr("代理端口:")
+                            font.pixelSize: 14
+                        }
+
+                        TextField {
+                            id: proxyPortInput
+                            Layout.fillWidth: true
+                            placeholderText: "8000"
+                            text: backend.getSetting("proxy_port", "8000")
+                            validator: IntValidator { bottom: 1024; top: 65535 }
+                            font.pixelSize: 14
+                        }
+
+                        Label {
+                            text: qsTr("代理地址:")
+                            font.pixelSize: 14
+                        }
+
+                        TextField {
+                            id: proxyHostInput
+                            Layout.fillWidth: true
+                            placeholderText: "localhost"
+                            text: backend.getSetting("proxy_host", "localhost")
+                            font.pixelSize: 14
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Button {
+                            text: qsTr("保存设置")
+                            highlighted: true
+                            onClicked: {
+                                backend.setSetting("proxy_port", proxyPortInput.text)
+                                backend.setSetting("proxy_host", proxyHostInput.text)
+                                backend.logMessage("代理服务配置已保存: " + proxyHostInput.text + ":" + proxyPortInput.text)
+                                saveSuccessDialog.open()
+                            }
+                        }
+
+                        Label {
+                            text: qsTr("注意：需要重启代理服务才能生效")
+                            font.pixelSize: 11
+                            color: Material.color(Material.Orange)
+                            Layout.fillWidth: true
+                        }
+                    }
+                }
+            }
+
+            GroupBox {
                 title: qsTr("Advanced Settings")
                 Layout.fillWidth: true
 
@@ -212,6 +285,19 @@ Page {
             Item {
                 Layout.fillHeight: true
             }
+        }
+    }
+
+    Dialog {
+        id: saveSuccessDialog
+        title: qsTr("保存成功")
+        modal: true
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        standardButtons: Dialog.Ok
+
+        Label {
+            text: qsTr("代理服务配置已保存，需要重启代理服务才能生效")
         }
     }
 

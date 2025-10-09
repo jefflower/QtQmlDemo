@@ -81,3 +81,15 @@ void Backend::logMessage(const QString &msg)
 {
     qDebug() << "[QML Log]:" << msg;
 }
+
+QString Backend::getSetting(const QString &key, const QString &defaultValue)
+{
+    return m_settings.value(key, defaultValue).toString();
+}
+
+void Backend::setSetting(const QString &key, const QString &value)
+{
+    m_settings.setValue(key, value);
+    m_settings.sync();
+    qDebug() << "Setting saved:" << key << "=" << value;
+}

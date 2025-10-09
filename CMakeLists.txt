@@ -12,7 +12,7 @@ if(DEFINED ENV{Qt5_DIR})
     set(Qt5_DIR $ENV{Qt5_DIR})
 endif()
 
-find_package(Qt5 5.12 REQUIRED COMPONENTS Core Quick Qml Widgets)
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Quick Qml Widgets Sql Network)
 find_package(Qt5QuickControls2 REQUIRED)
 
 # 添加可执行文件
@@ -20,6 +20,12 @@ add_executable(QtQmlDemo
     src/main.cpp
     src/backend.cpp
     src/backend.h
+    src/databasemanager.cpp
+    src/databasemanager.h
+    src/httpclient.cpp
+    src/httpclient.h
+    src/medicaldataprocessor.cpp
+    src/medicaldataprocessor.h
     qml.qrc
 )
 
@@ -30,6 +36,8 @@ target_link_libraries(QtQmlDemo
     Qt5::Qml
     Qt5::QuickControls2
     Qt5::Widgets
+    Qt5::Sql
+    Qt5::Network
 )
 
 # 设置安装规则
