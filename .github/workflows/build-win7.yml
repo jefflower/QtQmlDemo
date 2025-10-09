@@ -121,23 +121,18 @@ jobs:
         echo Build complete!
         dir *.exe
 
-    - name: Download MySQL Client DLL
-      shell: powershell
+    - name: Verify MySQL Client DLL
+      shell: cmd
       run: |
-        # 下载MySQL Connector/C 6.1.11 (兼容Windows 7)
-        Write-Host "Downloading MySQL Connector/C..."
-        $url = "https://dev.mysql.com/get/Downloads/Connector-C/mysql-connector-c-6.1.11-winx64.zip"
-        $output = "mysql-connector.zip"
-
-        # 使用Invoke-WebRequest下载
-        Invoke-WebRequest -Uri $url -OutFile $output
-
-        # 解压
-        Write-Host "Extracting MySQL Connector..."
-        Expand-Archive -Path $output -DestinationPath "mysql-connector" -Force
-
-        Write-Host "MySQL Connector downloaded and extracted"
-        Get-ChildItem -Path "mysql-connector" -Recurse -Filter "libmysql.dll" | Select-Object FullName
+        echo Checking for MySQL client library...
+        if exist "dependencies\mysql\libmysql.dll" (
+          echo [OK] libmysql.dll found in repository
+        ) else (
+          echo [ERROR] libmysql.dll not found!
+          echo Please download MySQL Connector/C 6.1.11 and place libmysql.dll in dependencies/mysql/
+          echo Download from: https://dev.mysql.com/downloads/connector/c/
+          exit /b 1
+        )
 
     - name: Package
       shell: cmd
@@ -169,11 +164,12 @@ jobs:
 
         echo.
         echo Copying MySQL client library...
-        for /r "%CD%\mysql-connector" %%f in (libmysql.dll) do (
-          if exist "%%f" (
-            copy "%%f" deploy\
-            echo Copied: %%f
-          )
+        copy dependencies\mysql\libmysql.dll deploy\
+        if errorlevel 1 (
+          echo [ERROR] Failed to copy libmysql.dll
+          exit /b 1
+        ) else (
+          echo [OK] libmysql.dll copied successfully
         )
 
         echo.

@@ -6,9 +6,10 @@
 
 ### 1. libmysql.dll - MySQL客户端库
 
-**自动下载（推荐）：**
-- GitHub Actions会自动下载并打包到发布包中
-- 无需手动操作
+**从仓库获取（推荐）：**
+- GitHub Actions会直接使用仓库中的 `dependencies/mysql/libmysql.dll`
+- 编译后的Windows包已包含此文件
+- 如果您是首次设置，需要将DLL添加到仓库（见下方）
 
 **手动下载地址：**
 
@@ -22,6 +23,18 @@
 - 官方下载页面: https://mariadb.com/downloads/connectors/connectors-data-access/c-connector/
 - 下载对应架构的安装包
 - 安装后找到 `libmariadb.dll`（可重命名为libmysql.dll）
+
+**如何将DLL添加到仓库：**
+1. 下载上述任一版本的MySQL客户端库
+2. 解压后找到 `lib/libmysql.dll` (约1-2MB)
+3. 复制到项目的 `dependencies/mysql/` 目录
+4. 提交到git仓库：
+   ```bash
+   git add dependencies/mysql/libmysql.dll
+   git commit -m "build: 添加MySQL客户端库 libmysql.dll"
+   git push
+   ```
+5. GitHub Actions会自动使用此文件进行编译
 
 ### 2. qsqlmysql.dll - Qt MySQL插件
 
