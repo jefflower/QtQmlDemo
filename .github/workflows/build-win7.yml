@@ -134,6 +134,56 @@ jobs:
           exit /b 1
         )
 
+    - name: Install Qt Source
+      shell: powershell
+      run: |
+        Write-Host "Installing Qt 5.15.2 source code..."
+        python -m aqt install-src --outputdir Qt windows desktop 5.15.2
+
+    - name: Build Qt MySQL Plugin
+      shell: cmd
+      run: |
+        echo Building Qt MySQL plugin from source...
+
+        set QT_DIR=%CD%\Qt\5.15.2\mingw81_64
+        set MINGW_DIR=%CD%\Qt\Tools\mingw810_64
+        set MYSQL_DIR=%CD%\dependencies\mysql
+        set PATH=%MINGW_DIR%\bin;%QT_DIR%\bin;%PATH%
+
+        cd Qt\5.15.2\Src\qtbase\src\plugins\sqldrivers
+
+        echo Configuring MySQL plugin...
+        qmake -- MYSQL_INCDIR="%MYSQL_DIR%" MYSQL_LIBDIR="%MYSQL_DIR%"
+        if errorlevel 1 (
+          echo [ERROR] qmake configuration failed
+          exit /b 1
+        )
+
+        cd mysql
+        qmake
+        if errorlevel 1 (
+          echo [ERROR] qmake for mysql plugin failed
+          exit /b 1
+        )
+
+        mingw32-make
+        if errorlevel 1 (
+          echo [ERROR] Build failed
+          exit /b 1
+        )
+
+        echo [OK] Qt MySQL plugin built successfully
+        dir *.dll
+
+        REM 复制到临时位置供后续使用
+        mkdir %CD%\..\..\..\..\..\..\mysql_plugin_compiled
+        copy qsqlmysql.dll %CD%\..\..\..\..\..\..\mysql_plugin_compiled\
+
+        cd %CD%\..\..\..\..\..\..
+
+        echo Back to root directory
+        dir mysql_plugin_compiled
+
     - name: Package
       shell: cmd
       run: |
@@ -176,20 +226,16 @@ jobs:
         echo Copying Qt MySQL plugin...
         if not exist deploy\sqldrivers mkdir deploy\sqldrivers
 
-        REM 优先从仓库复制
-        if exist "dependencies\qt-plugins\sqldrivers\qsqlmysql.dll" (
+        REM 优先使用刚编译的插件
+        if exist "mysql_plugin_compiled\qsqlmysql.dll" (
+          copy mysql_plugin_compiled\qsqlmysql.dll deploy\sqldrivers\
+          echo [OK] Qt MySQL plugin copied from compiled source (Qt 5.15.2)
+        ) else if exist "dependencies\qt-plugins\sqldrivers\qsqlmysql.dll" (
           copy dependencies\qt-plugins\sqldrivers\qsqlmysql.dll deploy\sqldrivers\
-          echo [OK] Qt MySQL plugin copied from repository
+          echo [WARNING] Using pre-built plugin from repository (may have version mismatch)
         ) else (
-          REM 尝试从Qt安装复制
-          copy "%QT_DIR%\plugins\sqldrivers\qsqlmysql.dll" deploy\sqldrivers\ 2>nul
-          if errorlevel 1 (
-            echo [ERROR] Qt MySQL plugin not found!
-            echo Please add qsqlmysql.dll to dependencies/qt-plugins/sqldrivers/
-            exit /b 1
-          ) else (
-            echo [OK] Qt MySQL plugin copied from Qt installation
-          )
+          echo [ERROR] Qt MySQL plugin not found!
+          exit /b 1
         )
 
         echo.
