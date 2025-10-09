@@ -213,16 +213,24 @@ jobs:
         )
 
         echo [OK] Qt MySQL plugin built successfully
-        dir *.dll
+        echo Listing built DLL files:
+        dir /b *.dll
 
         REM 复制到临时位置供后续使用
-        mkdir %CD%\..\..\..\..\..\..\mysql_plugin_compiled
-        copy qsqlmysql.dll %CD%\..\..\..\..\..\..\mysql_plugin_compiled\
-
+        echo Creating mysql_plugin_compiled directory...
         cd %CD%\..\..\..\..\..\..
+        mkdir mysql_plugin_compiled
 
-        echo Back to root directory
-        dir mysql_plugin_compiled
+        echo Copying qsqlmysql.dll...
+        copy Qt\5.15.2\Src\qtbase\src\plugins\sqldrivers\mysql\qsqlmysql.dll mysql_plugin_compiled\
+
+        if exist mysql_plugin_compiled\qsqlmysql.dll (
+          echo [SUCCESS] qsqlmysql.dll copied successfully
+          dir mysql_plugin_compiled\qsqlmysql.dll
+        ) else (
+          echo [ERROR] Failed to copy qsqlmysql.dll
+        )
+
         goto end_plugin_build
 
         :skip_plugin_build
@@ -284,21 +292,43 @@ jobs:
         :mysql_dll_done
 
         echo.
+        echo ==========================================
         echo Copying Qt MySQL plugin...
-        if not exist deploy\sqldrivers mkdir deploy\sqldrivers
+        echo ==========================================
+
+        echo Checking for compiled plugin...
+        if exist "mysql_plugin_compiled" (
+          echo mysql_plugin_compiled directory exists
+          dir mysql_plugin_compiled
+        ) else (
+          echo mysql_plugin_compiled directory NOT found
+        )
+
+        if not exist deploy\sqldrivers (
+          echo Creating deploy\sqldrivers directory...
+          mkdir deploy\sqldrivers
+        )
 
         REM 优先使用刚编译的插件
         if exist "mysql_plugin_compiled\qsqlmysql.dll" (
-          copy mysql_plugin_compiled\qsqlmysql.dll deploy\sqldrivers\
-          echo [OK] Qt MySQL plugin copied from compiled source (Qt 5.15.2 - version matched)
+          echo [INFO] Found compiled qsqlmysql.dll, copying...
+          copy /Y mysql_plugin_compiled\qsqlmysql.dll deploy\sqldrivers\
+          if exist deploy\sqldrivers\qsqlmysql.dll (
+            echo [SUCCESS] Qt MySQL plugin copied from compiled source (Qt 5.15.2 - version matched)
+            dir deploy\sqldrivers\qsqlmysql.dll
+          ) else (
+            echo [ERROR] Copy failed!
+          )
         ) else if exist "dependencies\qt-plugins\sqldrivers\qsqlmysql.dll" (
-          copy dependencies\qt-plugins\sqldrivers\qsqlmysql.dll deploy\sqldrivers\
-          echo [WARNING] Using pre-built plugin from repository (may have version mismatch)
+          echo [INFO] Using pre-built plugin from repository...
+          copy /Y dependencies\qt-plugins\sqldrivers\qsqlmysql.dll deploy\sqldrivers\
+          echo [WARNING] May have version mismatch!
         ) else (
-          echo [WARNING] Qt MySQL plugin not found!
-          echo [WARNING] Application will not be able to connect to MySQL database
-          echo [WARNING] Please manually add qsqlmysql.dll to sqldrivers folder
-          REM 不退出，让构建继续
+          echo [ERROR] Qt MySQL plugin not found anywhere!
+          echo [ERROR] Application will not be able to connect to MySQL database
+          echo Searched locations:
+          echo   1. mysql_plugin_compiled\qsqlmysql.dll
+          echo   2. dependencies\qt-plugins\sqldrivers\qsqlmysql.dll
         )
 
         echo.
@@ -390,11 +420,31 @@ jobs:
         )
 
         echo.
-        echo Package contents:
-        dir deploy\*.dll deploy\*.exe
+        echo ==========================================
+        echo Final Package Verification
+        echo ==========================================
         echo.
-        echo QML files:
-        dir deploy\qml\*.qml 2>nul
+        echo Checking deploy directory structure:
+        tree /F deploy\sqldrivers 2>nul
+
+        echo.
+        echo Critical files check:
+        if exist deploy\QtQmlDemo.exe echo [OK] QtQmlDemo.exe
+        if exist deploy\libmysql.dll echo [OK] libmysql.dll
+        if exist deploy\Qt5Sql.dll echo [OK] Qt5Sql.dll
+        if exist deploy\sqldrivers\qsqlmysql.dll (
+          echo [OK] sqldrivers\qsqlmysql.dll
+        ) else (
+          echo [MISSING] sqldrivers\qsqlmysql.dll
+        )
+
+        echo.
+        echo All DLL files in deploy:
+        dir /b deploy\*.dll | findstr /v /i "d3dcompiler"
+
+        echo.
+        echo All files in deploy\sqldrivers:
+        dir /b deploy\sqldrivers 2>nul || echo sqldrivers directory not found or empty
 
     - name: Upload
       uses: actions/upload-artifact@v4
