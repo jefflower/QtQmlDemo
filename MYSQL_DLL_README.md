@@ -38,14 +38,32 @@
 
 ### 2. qsqlmysql.dll - Qt MySQL插件
 
-**位置：**
-- 已包含在Qt 5.15.2安装中
-- 路径: `Qt\5.15.2\mingw81_64\plugins\sqldrivers\qsqlmysql.dll`
-- GitHub Actions会自动复制到 `deploy\sqldrivers\` 目录
+**从仓库获取（推荐）：**
+- GitHub Actions会直接使用仓库中的 `dependencies/qt-plugins/sqldrivers/qsqlmysql.dll`
+- 编译后的Windows包已包含此文件
+- 如果您是首次设置，需要将DLL添加到仓库（见下方）
 
-**如果缺失：**
-- 下载完整的Qt 5.15.2 MinGW版本
-- 或使用Qt Maintenance Tool安装SQL模块
+**位置：**
+- Qt 5.15.2 MinGW 64位安装中的位置：
+  ```
+  Qt\5.15.2\mingw81_64\plugins\sqldrivers\qsqlmysql.dll
+  ```
+
+**如何将DLL添加到仓库：**
+1. 从Qt 5.15.2 MinGW 64位安装中找到 `qsqlmysql.dll` (约30-50KB)
+2. 复制到项目的 `dependencies/qt-plugins/sqldrivers/` 目录
+3. 提交到git仓库：
+   ```bash
+   git add dependencies/qt-plugins/sqldrivers/qsqlmysql.dll
+   git commit -m "build: 添加Qt MySQL驱动插件 qsqlmysql.dll"
+   git push
+   ```
+4. GitHub Actions会自动使用此文件进行编译
+
+**如果没有Qt安装：**
+- 下载Qt官方安装器: https://www.qt.io/download-qt-installer
+- 安装Qt 5.15.2 with MinGW 8.1.0 64-bit
+- 从上述路径复制文件
 
 ## 文件结构
 

@@ -175,11 +175,21 @@ jobs:
         echo.
         echo Copying Qt MySQL plugin...
         if not exist deploy\sqldrivers mkdir deploy\sqldrivers
-        copy "%QT_DIR%\plugins\sqldrivers\qsqlmysql.dll" deploy\sqldrivers\ 2>nul
-        if errorlevel 1 (
-          echo WARNING: Qt MySQL plugin not found in Qt installation
+
+        REM 优先从仓库复制
+        if exist "dependencies\qt-plugins\sqldrivers\qsqlmysql.dll" (
+          copy dependencies\qt-plugins\sqldrivers\qsqlmysql.dll deploy\sqldrivers\
+          echo [OK] Qt MySQL plugin copied from repository
         ) else (
-          echo Qt MySQL plugin copied successfully
+          REM 尝试从Qt安装复制
+          copy "%QT_DIR%\plugins\sqldrivers\qsqlmysql.dll" deploy\sqldrivers\ 2>nul
+          if errorlevel 1 (
+            echo [ERROR] Qt MySQL plugin not found!
+            echo Please add qsqlmysql.dll to dependencies/qt-plugins/sqldrivers/
+            exit /b 1
+          ) else (
+            echo [OK] Qt MySQL plugin copied from Qt installation
+          )
         )
 
         echo.
