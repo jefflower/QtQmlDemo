@@ -410,3 +410,19 @@ QString MedicalDataProcessor::extractPsnIdetType(const QJsonObject &response)
 
     return psnIdetType;
 }
+
+QString MedicalDataProcessor::getQuerySqlTemplate()
+{
+    return m_dbManager->getQuerySqlTemplate();
+}
+
+void MedicalDataProcessor::setQuerySqlTemplate(const QString &sqlTemplate)
+{
+    m_dbManager->setQuerySqlTemplate(sqlTemplate);
+    appendLog("SQL查询模板已更新");
+}
+
+QString MedicalDataProcessor::getDefaultQuerySqlTemplate()
+{
+    return m_dbManager->getDefaultQuerySqlTemplate();
+}

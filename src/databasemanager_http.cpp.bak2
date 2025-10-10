@@ -1,0 +1,242 @@
+#include "databasemanager.h"
+#include <QDebug>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QEventLoop>
+#include <QTimer>
+
+DatabaseManager::DatabaseManager(QObject *parent)
+    : QObject(parent)
+{
+}
+
+DatabaseManager::~DatabaseManager()
+{
+}
+
+QString DatabaseManager::getProxyBaseUrl() const
+{
+    QString host = m_settings.value("proxy_host", "localhost").toString();
+    QString port = m_settings.value("proxy_port", "8000").toString();
+    return QString("http://%1:%2").arg(host).arg(port);
+}
+
+bool DatabaseManager::connectToDatabase(const QString &host, int port, const QString &database,
+                                       const QString &username, const QString &password)
+{
+    // HTTP代理模式：测试代理服务连接
+    QNetworkAccessManager manager;
+    QNetworkRequest request;
+    request.setUrl(QUrl(getProxyBaseUrl() + "/test"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QNetworkReply *reply = manager.get(request);
+
+    // 等待响应
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    timeout.start(5000);  // 5秒超时
+    loop.exec();
+
+    if (timeout.isActive()) {
+        timeout.stop();
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray responseData = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(responseData);
+            QJsonObject obj = doc.object();
+
+            if (obj["success"].toBool()) {
+                qDebug() << "数据库代理服务连接成功";
+                reply->deleteLater();
+                return true;
+            } else {
+                m_lastError = QString("代理服务错误: %1").arg(obj["message"].toString());
+            }
+        } else {
+            m_lastError = QString("网络错误: %1").arg(reply->errorString());
+        }
+    } else {
+        // 超时
+        reply->abort();
+        m_lastError = "连接代理服务超时";
+    }
+
+    reply->deleteLater();
+    qCritical() << m_lastError;
+    emit errorOccurred(m_lastError);
+    return false;
+}
+
+void DatabaseManager::closeConnection()
+{
+    qDebug() << "HTTP代理模式：无需关闭连接";
+}
+
+bool DatabaseManager::isConnected() const
+{
+    // 简单返回true，实际连接状态在每次请求时检查
+    return true;
+}
+
+QList<VisitRecord> DatabaseManager::queryVisitsByDate(const QDate &date)
+{
+    QList<VisitRecord> records;
+
+    QNetworkAccessManager manager;
+    QNetworkRequest request;
+    request.setUrl(QUrl(getProxyBaseUrl() + "/query_visits_by_date"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    // 构建请求体
+    QJsonObject requestBody;
+    requestBody["date"] = date.toString("yyyy-MM-dd");
+
+    QByteArray data = QJsonDocument(requestBody).toJson();
+    QNetworkReply *reply = manager.post(request, data);
+
+    // 等待响应
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    timeout.start(30000);  // 30秒超时
+    loop.exec();
+
+    if (!timeout.isActive()) {
+        // 超时
+        reply->abort();
+        m_lastError = "查询超时";
+        qCritical() << m_lastError;
+        emit errorOccurred(m_lastError);
+        reply->deleteLater();
+        return records;
+    }
+
+    timeout.stop();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        m_lastError = QString("网络错误: %1").arg(reply->errorString());
+        qCritical() << m_lastError;
+        emit errorOccurred(m_lastError);
+        reply->deleteLater();
+        return records;
+    }
+
+    // 解析响应
+    QByteArray responseData = reply->readAll();
+    reply->deleteLater();
+
+    QJsonDocument doc = QJsonDocument::fromJson(responseData);
+    QJsonObject obj = doc.object();
+
+    if (!obj["success"].toBool()) {
+        m_lastError = QString("查询失败: %1").arg(obj["message"].toString());
+        qCritical() << m_lastError;
+        emit errorOccurred(m_lastError);
+        return records;
+    }
+
+    // 提取记录
+    QJsonArray recordsArray = obj["records"].toArray();
+    for (const QJsonValue &value : recordsArray) {
+        QJsonObject recordObj = value.toObject();
+
+        VisitRecord record;
+        record.visitId = recordObj["visitId"].toInt();
+        record.patientName = recordObj["patientName"].toString();
+        record.idCertNo = recordObj["idCertNo"].toString();
+        record.ssGroupCode = recordObj["ssGroupCode"].toString();
+
+        records.append(record);
+    }
+
+    qDebug() << QString("查询到 %1 条记录 (日期: %2)")
+                .arg(records.size())
+                .arg(date.toString("yyyy-MM-dd"));
+
+    return records;
+}
+
+bool DatabaseManager::updateVisitSSGroupCode(int visitId, const QString &groupCode)
+{
+    QNetworkAccessManager manager;
+    QNetworkRequest request;
+    request.setUrl(QUrl(getProxyBaseUrl() + "/update_visit_group_code"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    // 构建请求体
+    QJsonObject requestBody;
+    requestBody["visitId"] = visitId;
+    if (groupCode.isEmpty()) {
+        requestBody["groupCode"] = QJsonValue::Null;
+    } else {
+        requestBody["groupCode"] = groupCode;
+    }
+
+    QByteArray data = QJsonDocument(requestBody).toJson();
+    QNetworkReply *reply = manager.post(request, data);
+
+    // 等待响应
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    timeout.start(10000);  // 10秒超时
+    loop.exec();
+
+    if (!timeout.isActive()) {
+        // 超时
+        reply->abort();
+        m_lastError = "更新超时";
+        qCritical() << m_lastError;
+        emit errorOccurred(m_lastError);
+        reply->deleteLater();
+        return false;
+    }
+
+    timeout.stop();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        m_lastError = QString("网络错误: %1").arg(reply->errorString());
+        qCritical() << m_lastError;
+        emit errorOccurred(m_lastError);
+        reply->deleteLater();
+        return false;
+    }
+
+    // 解析响应
+    QByteArray responseData = reply->readAll();
+    reply->deleteLater();
+
+    QJsonDocument doc = QJsonDocument::fromJson(responseData);
+    QJsonObject obj = doc.object();
+
+    if (!obj["success"].toBool()) {
+        m_lastError = QString("更新失败: %1").arg(obj["message"].toString());
+        qCritical() << m_lastError;
+        emit errorOccurred(m_lastError);
+        return false;
+    }
+
+    return true;
+}
+
+QString DatabaseManager::lastError() const
+{
+    return m_lastError;
+}

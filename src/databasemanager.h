@@ -50,6 +50,11 @@ public:
     // 获取最后的错误信息
     QString lastError() const;
 
+    // SQL模板管理
+    QString getQuerySqlTemplate() const;
+    void setQuerySqlTemplate(const QString &sqlTemplate);
+    QString getDefaultQuerySqlTemplate() const;
+
 signals:
     void errorOccurred(const QString &error);
 
@@ -57,6 +62,10 @@ private:
     QSqlDatabase m_db;
     QString m_connectionName;
     QString m_lastError;
+    QSettings m_settings;
+
+    // 默认SQL模板
+    static const QString DEFAULT_QUERY_SQL;
 };
 
 #endif // DATABASEMANAGER_H

@@ -2,27 +2,11 @@
 #include <QDebug>
 #include <QUuid>
 
-// 默认SQL模板
-const QString DatabaseManager::DEFAULT_QUERY_SQL = R"(
-SELECT t_visit.Visit_ID,
-       t_visit.Patient_Name,
-       hip_mpi.decrypt_data(t_visit_extra.IDCert_No) as IDCert_No,
-       t_visit.SS_Group_Code
-FROM microhis_hsd.t_visit
-INNER JOIN microhis_hsd.t_visit_extra ON t_visit.Visit_ID = t_visit_extra.Visit_ID
-WHERE TIME_Admission >= ? AND TIME_Admission < ?
-)";
-
 DatabaseManager::DatabaseManager(QObject *parent)
     : QObject(parent)
 {
     // 生成唯一的连接名
     m_connectionName = QUuid::createUuid().toString();
-
-    // 如果配置中没有SQL模板，则设置默认值
-    if (m_settings.value("database/query_sql_template").toString().isEmpty()) {
-        m_settings.setValue("database/query_sql_template", DEFAULT_QUERY_SQL);
-    }
 }
 
 DatabaseManager::~DatabaseManager()
@@ -86,9 +70,16 @@ QList<VisitRecord> DatabaseManager::queryVisitsByDate(const QDate &date)
         return records;
     }
 
-    // 从配置读取SQL查询模板
-    QString sql = getQuerySqlTemplate();
-    qDebug() << "使用SQL模板查询:" << sql;
+    // 构造SQL查询
+    QString sql = R"(
+        SELECT t_visit.Visit_ID,
+               t_visit.Patient_Name,
+               hip_mpi.decrypt_data(t_visit_extra.IDCert_No) as IDCert_No,
+               t_visit.SS_Group_Code
+        FROM microhis_hsd.t_visit
+        INNER JOIN microhis_hsd.t_visit_extra ON t_visit.Visit_ID = t_visit_extra.Visit_ID
+        WHERE TIME_Admission >= ? AND TIME_Admission < ?
+    )";
 
     QSqlQuery query(m_db);
     query.prepare(sql);
@@ -164,20 +155,4 @@ bool DatabaseManager::updateVisitSSGroupCode(int visitId, const QString &groupCo
 QString DatabaseManager::lastError() const
 {
     return m_lastError;
-}
-
-QString DatabaseManager::getQuerySqlTemplate() const
-{
-    return m_settings.value("database/query_sql_template", DEFAULT_QUERY_SQL).toString();
-}
-
-void DatabaseManager::setQuerySqlTemplate(const QString &sqlTemplate)
-{
-    m_settings.setValue("database/query_sql_template", sqlTemplate);
-    qDebug() << "SQL查询模板已更新";
-}
-
-QString DatabaseManager::getDefaultQuerySqlTemplate() const
-{
-    return DEFAULT_QUERY_SQL;
 }

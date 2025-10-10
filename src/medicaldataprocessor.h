@@ -55,6 +55,11 @@ public:
     Q_INVOKABLE bool testDatabaseConnection();
     Q_INVOKABLE void clearLog();
 
+    // SQL模板配置
+    Q_INVOKABLE QString getQuerySqlTemplate();
+    Q_INVOKABLE void setQuerySqlTemplate(const QString &sqlTemplate);
+    Q_INVOKABLE QString getDefaultQuerySqlTemplate();
+
 signals:
     void progressTextChanged();
     void logTextChanged();

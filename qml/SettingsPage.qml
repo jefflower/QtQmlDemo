@@ -220,6 +220,79 @@ Page {
             }
 
             GroupBox {
+                title: qsTr("SQL查询配置")
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    width: parent.width
+                    spacing: 15
+
+                    Label {
+                        text: qsTr("配置医保数据查询的SQL语句模板")
+                        font.pixelSize: 12
+                        color: Material.color(Material.Grey)
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    Label {
+                        text: qsTr("SQL模板 (使用 ? 作为参数占位符，依次为开始时间、结束时间):")
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.minimumHeight: 200
+                        Layout.maximumHeight: 300
+                        clip: true
+
+                        TextArea {
+                            id: sqlTemplateInput
+                            text: medicalProcessor.getQuerySqlTemplate()
+                            wrapMode: TextArea.Wrap
+                            font.family: "Courier New"
+                            font.pixelSize: 12
+                            selectByMouse: true
+                            placeholderText: "SELECT ..."
+                        }
+                    }
+
+                    Label {
+                        text: qsTr("注意：SQL必须返回4列，依次为 Visit_ID, Patient_Name, IDCert_No, SS_Group_Code")
+                        font.pixelSize: 11
+                        color: Material.color(Material.Orange)
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Button {
+                            text: qsTr("保存SQL模板")
+                            highlighted: true
+                            onClicked: {
+                                medicalProcessor.setQuerySqlTemplate(sqlTemplateInput.text)
+                                sqlSaveDialog.open()
+                            }
+                        }
+
+                        Button {
+                            text: qsTr("恢复默认SQL")
+                            Material.background: Material.color(Material.Orange)
+                            onClicked: {
+                                sqlTemplateInput.text = medicalProcessor.getDefaultQuerySqlTemplate()
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
+                }
+            }
+
+            GroupBox {
                 title: qsTr("Advanced Settings")
                 Layout.fillWidth: true
 
@@ -298,6 +371,19 @@ Page {
 
         Label {
             text: qsTr("代理服务配置已保存，需要重启代理服务才能生效")
+        }
+    }
+
+    Dialog {
+        id: sqlSaveDialog
+        title: qsTr("保存成功")
+        modal: true
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        standardButtons: Dialog.Ok
+
+        Label {
+            text: qsTr("SQL查询模板已保存，下次查询时将使用新的SQL模板")
         }
     }
 
